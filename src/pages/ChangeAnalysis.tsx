@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { searchSentinel2, analyzeSentinel2Change, getSentinel2PreviewUrl, getChangeMaskUrl } from '../services/api';
 import { Sentinel2Product, Sentinel2SearchResponse, ChangeAnalysisResult } from '../types';
+import { SatelliteInvestigationMap } from '../components/SatelliteInvestigationMap';
 import { format, subDays } from 'date-fns';
 
 export const ChangeAnalysis: React.FC = () => {
@@ -120,6 +121,13 @@ export const ChangeAnalysis: React.FC = () => {
           Cached
         </span>
       );
+    } else if (mode === 'upstream_unavailable' || mode === 'processing_unavailable') {
+      return (
+        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/40 flex items-center gap-1">
+          <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />
+          Unavailable
+        </span>
+      );
     } else {
       return (
         <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 flex items-center gap-1">
@@ -145,9 +153,22 @@ export const ChangeAnalysis: React.FC = () => {
 
       {/* Error Message */}
       {errorMessage && (
-        <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4 flex items-start space-x-2 text-xs text-red-300">
-          <AlertTriangle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
-          <span className="flex-1">{errorMessage}</span>
+        <div className="bg-rose-500/10 border border-rose-500/30 rounded-xl p-5 shadow-lg space-y-2 text-rose-200">
+          <div className="flex items-center space-x-2 text-rose-400 font-semibold text-sm">
+            <AlertTriangle className="w-5 h-5 shrink-0" />
+            <span>Sentinel-2 processing unavailable</span>
+          </div>
+          <p className="text-xs text-rose-300">
+            Live Copernicus data could not be retrieved.
+          </p>
+          <p className="text-[11px] text-slate-400">
+            Try again when the data service is available.
+          </p>
+          {errorMessage && errorMessage !== 'Sentinel-2 processing unavailable' && errorMessage !== 'Live Copernicus data could not be retrieved.' && (
+            <p className="text-[10px] font-mono text-slate-400 pt-1 border-t border-rose-500/20">
+              Details: {errorMessage}
+            </p>
+          )}
         </div>
       )}
 
@@ -362,8 +383,39 @@ export const ChangeAnalysis: React.FC = () => {
             </div>
           </div>
 
-          {/* Imagery Display */}
-          <div className="space-y-3">
+          {/* Large Before/After Investigation Map */}
+          {beforeProduct && afterProduct && (
+            <div className="pt-2">
+              <SatelliteInvestigationMap
+                beforeScene={{
+                  id: beforeProduct.id,
+                  name: beforeProduct.name,
+                  acquisition_date: beforeProduct.acquisition_date,
+                  tile_id: beforeProduct.tile_id,
+                  cloud_cover: beforeProduct.cloud_cover,
+                  bbox: beforeProduct.bbox,
+                  data_mode: beforeProduct.data_mode,
+                  preview_url: getSentinel2PreviewUrl(beforeProduct.id)
+                }}
+                afterScene={{
+                  id: afterProduct.id,
+                  name: afterProduct.name,
+                  acquisition_date: afterProduct.acquisition_date,
+                  tile_id: afterProduct.tile_id,
+                  cloud_cover: afterProduct.cloud_cover,
+                  bbox: afterProduct.bbox,
+                  data_mode: afterProduct.data_mode,
+                  preview_url: getSentinel2PreviewUrl(afterProduct.id)
+                }}
+                aoiBbox={aoiBbox || [73.70, 18.40, 74.05, 18.70]}
+                analysis={analysisResult}
+              />
+            </div>
+          )}
+
+          {/* Quick Imagery Fallback Preview */}
+          <div className="space-y-3 pt-3 border-t border-slate-800">
+            <div className="text-xs font-semibold text-slate-300">Detailed Layer Inspector</div>
             {/* View Controls */}
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2">

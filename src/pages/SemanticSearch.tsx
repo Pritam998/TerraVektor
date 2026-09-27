@@ -15,10 +15,12 @@ import {
   Activity,
   Database,
   Building2,
-  Construction
+  Construction,
+  Compass
 } from 'lucide-react';
 import { semanticRetrieval } from '../services/api';
-import { SemanticRetrievalResponse, ParsedQuery, BuiltUpAnalysisResult } from '../types';
+import { SemanticRetrievalResponse, ParsedQuery, BuiltUpAnalysisResult, ChangeAnalysisResult } from '../types';
+import { SatelliteInvestigationMap } from '../components/SatelliteInvestigationMap';
 import { format } from 'date-fns';
 
 export const SemanticSearch: React.FC = () => {
@@ -26,6 +28,7 @@ export const SemanticSearch: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
   const [result, setResult] = useState<SemanticRetrievalResponse | null>(null);
+  const [selectedCandidateId, setSelectedCandidateId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const sampleQueries = [
@@ -73,6 +76,13 @@ export const SemanticSearch: React.FC = () => {
         <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-yellow-500/20 text-yellow-300 border border-yellow-500/40 flex items-center gap-1">
           <span className="w-1.5 h-1.5 rounded-full bg-yellow-400" />
           Cached
+        </span>
+      );
+    } else if (mode === 'upstream_unavailable' || mode === 'processing_unavailable') {
+      return (
+        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/40 flex items-center gap-1">
+          <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />
+          Unavailable
         </span>
       );
     } else {
@@ -158,9 +168,22 @@ export const SemanticSearch: React.FC = () => {
 
       {/* Error Message */}
       {errorMessage && (
-        <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4 flex items-start space-x-2 text-xs text-red-300">
-          <AlertTriangle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
-          <span className="flex-1">{errorMessage}</span>
+        <div className="bg-rose-500/10 border border-rose-500/30 rounded-xl p-5 shadow-lg space-y-2 text-rose-200">
+          <div className="flex items-center space-x-2 text-rose-400 font-semibold text-sm">
+            <AlertTriangle className="w-5 h-5 shrink-0" />
+            <span>Sentinel-2 processing unavailable</span>
+          </div>
+          <p className="text-xs text-rose-300">
+            Live Copernicus data could not be retrieved.
+          </p>
+          <p className="text-[11px] text-slate-400">
+            Try again when the data service is available.
+          </p>
+          {errorMessage && errorMessage !== 'Sentinel-2 processing unavailable' && errorMessage !== 'Live Copernicus data could not be retrieved.' && (
+            <p className="text-[10px] font-mono text-slate-400 pt-1 border-t border-rose-500/20">
+              Details: {errorMessage}
+            </p>
+          )}
         </div>
       )}
 
@@ -280,200 +303,284 @@ export const SemanticSearch: React.FC = () => {
             </div>
           )}
 
-          {/* Analysis Results */}
-          {result.analysis && (
-            <div className="bg-ui-dark border border-ui-border rounded-xl p-5 space-y-4">
+          {/* Large Before/After Investigation Map Section */}
+          {result.beforeScene && result.afterScene && (
+            <div className="bg-ui-dark border border-ui-border rounded-xl p-5 shadow-xl space-y-4">
               <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                <h2 className="text-base font-semibold text-white flex items-center">
-                  {result.analysis.classification === 'built_up_change' ? (
-                    <>
-                      <Building2 className="w-4 h-4 mr-2 text-satellite-400" />
-                      Built-up Change Analysis Results
-                    </>
-                  ) : (
-                    <>
-                      <Activity className="w-4 h-4 mr-2 text-satellite-400" />
-                      Real Analysis Results
-                    </>
-                  )}
-                </h2>
+                <div>
+                  <h2 className="text-base font-semibold text-white flex items-center gap-2">
+                    <Activity className="w-4 h-4 text-satellite-400" />
+                    <span>Before / After Investigation Workspace</span>
+                  </h2>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Drag the comparison slider horizontally (Left = Before Baseline, Right = After Monitoring) over identical Sentinel-2 AOI.
+                  </p>
+                </div>
                 <div className="flex items-center space-x-2">
-                  {getDataModeBadge(result.analysis.data_mode)}
-                  {result.analysis.data_mode === 'real_sentinel2' && (
-                    <span className="text-[10px] text-emerald-400 flex items-center">
-                      <CheckCircle2 className="w-3 h-3 mr-1" />
-                      Verified Real Data
-                    </span>
-                  )}
+                  {result.analysis && getDataModeBadge(result.analysis.data_mode)}
                 </div>
               </div>
 
-              {/* Built-up Analysis Results */}
-              {result.analysis.classification === 'built_up_change' && (
-                <>
-                  {/* NDBI/NDVI Statistics */}
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    <div className="bg-slate-800/50 p-3 rounded-lg">
-                      <span className="text-slate-400 block mb-1 text-[11px]">Mean ΔNDVI</span>
-                      <span className="text-lg font-semibold text-emerald-400">{result.analysis.metrics.mean_ndvi_change.toFixed(3)}</span>
-                    </div>
-                    <div className="bg-slate-800/50 p-3 rounded-lg">
-                      <span className="text-slate-400 block mb-1 text-[11px]">Mean ΔNDBI</span>
-                      <span className="text-lg font-semibold text-amber-400">{result.analysis.metrics.mean_ndbi_change.toFixed(3)}</span>
-                    </div>
-                    <div className="bg-slate-800/50 p-3 rounded-lg">
-                      <span className="text-slate-400 block mb-1 text-[11px]">Changed Pixels</span>
-                      <span className="text-lg font-semibold text-white">{result.analysis.metrics.changed_pixels.toLocaleString()}</span>
-                    </div>
-                    <div className="bg-slate-800/50 p-3 rounded-lg">
-                      <span className="text-slate-400 block mb-1 text-[11px]">Change %</span>
-                      <span className="text-lg font-semibold text-white">{(result.analysis.metrics.change_percentage * 100).toFixed(2)}%</span>
-                    </div>
-                  </div>
+              <SatelliteInvestigationMap
+                beforeScene={{
+                  id: result.beforeScene.id,
+                  name: result.beforeScene.name,
+                  acquisition_date: result.beforeScene.acquisition_date,
+                  tile_id: result.beforeScene.tile_id,
+                  cloud_cover: result.beforeScene.cloud_cover,
+                  bbox: result.beforeScene.bbox,
+                  data_mode: result.beforeScene.data_mode,
+                  preview_url: `/api/sentinel2/preview/${result.beforeScene.id}`
+                }}
+                afterScene={{
+                  id: result.afterScene.id,
+                  name: result.afterScene.name,
+                  acquisition_date: result.afterScene.acquisition_date,
+                  tile_id: result.afterScene.tile_id,
+                  cloud_cover: result.afterScene.cloud_cover,
+                  bbox: result.afterScene.bbox,
+                  data_mode: result.afterScene.data_mode,
+                  preview_url: `/api/sentinel2/preview/${result.afterScene.id}`
+                }}
+                aoiBbox={result.parsedQuery?.aoi || [73.70, 18.40, 74.05, 18.70]}
+                analysis={result.analysis}
+                selectedCandidateId={selectedCandidateId}
+                onSelectCandidate={(id) => setSelectedCandidateId(id)}
+              />
+            </div>
+          )}
 
-                  {/* Candidate Summary */}
-                  <div className="grid grid-cols-3 gap-3">
-                    <div className="bg-slate-800/50 p-3 rounded-lg border border-orange-500/30">
-                      <span className="text-slate-400 block mb-1 text-[11px]">New Construction</span>
-                      <span className="text-xl font-bold text-orange-400">{result.analysis.candidate_summary.new_construction_count}</span>
-                    </div>
-                    <div className="bg-slate-800/50 p-3 rounded-lg border border-purple-500/30">
-                      <span className="text-slate-400 block mb-1 text-[11px]">Building Expansion</span>
-                      <span className="text-xl font-bold text-purple-400">{result.analysis.candidate_summary.building_expansion_count}</span>
-                    </div>
-                    <div className="bg-slate-800/50 p-3 rounded-lg">
-                      <span className="text-slate-400 block mb-1 text-[11px]">Total Candidates</span>
-                      <span className="text-xl font-bold text-white">{result.analysis.candidate_summary.total_candidates}</span>
-                    </div>
-                  </div>
-
-                  {/* Candidate Regions */}
-                  {result.analysis.candidates && result.analysis.candidates.length > 0 && (
-                    <div className="space-y-3">
-                      <h3 className="text-sm font-semibold text-white">Detected Candidate Regions</h3>
-                      <div className="space-y-2 max-h-64 overflow-y-auto">
-                        {result.analysis.candidates.map((candidate, idx) => (
-                          <div key={idx} className={`p-3 rounded-lg border ${
-                            candidate.type === 'new_construction_candidate' 
-                              ? 'bg-orange-500/10 border-orange-500/30' 
-                              : 'bg-purple-500/10 border-purple-500/30'
-                          }`}>
-                            <div className="flex items-center justify-between mb-2">
-                              <span className="text-xs font-semibold text-white flex items-center">
-                                {candidate.type === 'new_construction_candidate' ? (
-                                  <><Construction className="w-3 h-3 mr-1 text-orange-400" /> New Construction</>
-                                ) : (
-                                  <><Building2 className="w-3 h-3 mr-1 text-purple-400" /> Building Expansion</>
-                                )}
-                              </span>
-                              <span className="text-[10px] text-slate-400">{candidate.id}</span>
-                            </div>
-                            <div className="grid grid-cols-2 gap-2 text-xs">
-                              <div>
-                                <span className="text-slate-400">Area:</span>
-                                <span className="text-white ml-1">{candidate.area_m2.toLocaleString()} m²</span>
-                              </div>
-                              <div>
-                                <span className="text-slate-400">Pixels:</span>
-                                <span className="text-white ml-1">{candidate.pixel_count}</span>
-                              </div>
-                              <div>
-                                <span className="text-slate-400">ΔNDVI:</span>
-                                <span className="text-white ml-1">{candidate.mean_delta_ndvi.toFixed(3)}</span>
-                              </div>
-                              <div>
-                                <span className="text-slate-400">ΔNDBI:</span>
-                                <span className="text-white ml-1">{candidate.mean_delta_ndbi.toFixed(3)}</span>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
+          {/* Analysis Results */}
+          {result.analysis && (
+            <div className="bg-ui-dark border border-ui-border rounded-xl p-5 space-y-4">
+              {('classification' in result.analysis && result.analysis.classification === 'built_up_change') ? (() => {
+                const analysis = result.analysis as BuiltUpAnalysisResult;
+                return (
+                  <>
+                    <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                      <h2 className="text-base font-semibold text-white flex items-center">
+                        <Building2 className="w-4 h-4 mr-2 text-satellite-400" />
+                        Built-up Change Analysis Statistics
+                      </h2>
+                      <div className="flex items-center space-x-2">
+                        {getDataModeBadge(analysis.data_mode)}
+                        {analysis.data_mode === 'real_sentinel2' && (
+                          <span className="text-[10px] text-emerald-400 flex items-center">
+                            <CheckCircle2 className="w-3 h-3 mr-1" />
+                            Verified Real Data
+                          </span>
+                        )}
                       </div>
                     </div>
-                  )}
 
-                  {/* Interpretation */}
-                  <div className="bg-slate-900/60 p-4 rounded-lg border border-slate-800">
-                    <div className="flex items-start space-x-2">
-                      <Database className="w-4 h-4 text-satellite-400 shrink-0 mt-0.5" />
-                      <div className="flex-1">
-                        <p className="text-xs text-slate-300 leading-relaxed">
-                          <strong className="text-white">Built-up Change Analysis:</strong> Using Sentinel-2 B04 (Red), B08 (NIR), and B11 (SWIR) spectral bands from real Copernicus imagery. 
-                          B11 resampled from 20m to 10m using bilinear interpolation. 
-                          Detected <strong className="text-white">{result.analysis.candidate_summary.total_candidates}</strong> built-up change candidates across the analyzed AOI.
-                        </p>
-                        <p className="text-[11px] text-slate-500 mt-2">
-                          Source: {result.analysis.source || 'Real Sentinel-2 B04/B08/B11 processing'}
-                        </p>
+                    {/* NDBI/NDVI Statistics */}
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      <div className="bg-slate-800/50 p-3 rounded-lg">
+                        <span className="text-slate-400 block mb-1 text-[11px]">Mean ΔNDVI</span>
+                        <span className="text-lg font-semibold text-emerald-400">{analysis.metrics.mean_ndvi_change.toFixed(3)}</span>
+                      </div>
+                      <div className="bg-slate-800/50 p-3 rounded-lg">
+                        <span className="text-slate-400 block mb-1 text-[11px]">Mean ΔNDBI</span>
+                        <span className="text-lg font-semibold text-amber-400">{analysis.metrics.mean_ndbi_change.toFixed(3)}</span>
+                      </div>
+                      <div className="bg-slate-800/50 p-3 rounded-lg">
+                        <span className="text-slate-400 block mb-1 text-[11px]">Changed Pixels</span>
+                        <span className="text-lg font-semibold text-white">{analysis.metrics.changed_pixels.toLocaleString()}</span>
+                      </div>
+                      <div className="bg-slate-800/50 p-3 rounded-lg">
+                        <span className="text-slate-400 block mb-1 text-[11px]">Change %</span>
+                        <span className="text-lg font-semibold text-white">{(analysis.metrics.change_percentage * 100).toFixed(2)}%</span>
                       </div>
                     </div>
-                  </div>
 
-                  {/* Limitations */}
-                  {result.analysis.limitations && (
-                    <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3">
+                    {/* Candidate Summary */}
+                    <div className="grid grid-cols-3 gap-3">
+                      <div className="bg-slate-800/50 p-3 rounded-lg border border-orange-500/30">
+                        <span className="text-slate-400 block mb-1 text-[11px]">New Construction</span>
+                        <span className="text-xl font-bold text-orange-400">{analysis.candidate_summary.new_construction_count}</span>
+                      </div>
+                      <div className="bg-slate-800/50 p-3 rounded-lg border border-purple-500/30">
+                        <span className="text-slate-400 block mb-1 text-[11px]">Building Expansion</span>
+                        <span className="text-xl font-bold text-purple-400">{analysis.candidate_summary.building_expansion_count}</span>
+                      </div>
+                      <div className="bg-slate-800/50 p-3 rounded-lg">
+                        <span className="text-slate-400 block mb-1 text-[11px]">Total Candidates</span>
+                        <span className="text-xl font-bold text-white">{analysis.candidate_summary.total_candidates}</span>
+                      </div>
+                    </div>
+
+                    {/* Candidate Regions */}
+                    {analysis.candidates && analysis.candidates.length > 0 && (
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <h3 className="text-sm font-semibold text-white flex items-center gap-1.5">
+                            <Compass className="w-4 h-4 text-satellite-400" />
+                            <span>Detected Candidate Regions (Click card to zoom map)</span>
+                          </h3>
+                          <span className="text-xs text-slate-400">{analysis.candidates.length} regions detected</span>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                          {analysis.candidates.map((candidate: any, idx: number) => {
+                            const isSelected = candidate.id === selectedCandidateId;
+                            const isConstruction = candidate.type === 'new_construction_candidate';
+                            return (
+                              <div
+                                key={idx}
+                                onClick={() => setSelectedCandidateId(candidate.id)}
+                                className={`p-3.5 rounded-lg border cursor-pointer transition-all ${
+                                  isSelected
+                                    ? isConstruction
+                                      ? 'bg-orange-500/20 border-orange-400 ring-2 ring-orange-500/50 shadow-lg'
+                                      : 'bg-purple-500/20 border-purple-400 ring-2 ring-purple-500/50 shadow-lg'
+                                    : isConstruction
+                                    ? 'bg-orange-500/10 border-orange-500/30 hover:border-orange-400/70'
+                                    : 'bg-purple-500/10 border-purple-500/30 hover:border-purple-400/70'
+                                }`}
+                              >
+                                <div className="flex items-center justify-between mb-2">
+                                  <span className="text-xs font-semibold text-white flex items-center">
+                                    {isConstruction ? (
+                                      <><Construction className="w-3.5 h-3.5 mr-1.5 text-orange-400" /> New Construction</>
+                                    ) : (
+                                      <><Building2 className="w-3.5 h-3.5 mr-1.5 text-purple-400" /> Building Expansion</>
+                                    )}
+                                  </span>
+                                  {isSelected ? (
+                                    <span className="text-[10px] font-bold text-amber-300 bg-amber-500/20 px-1.5 py-0.5 rounded border border-amber-400/40 animate-pulse">
+                                      Active on Map
+                                    </span>
+                                  ) : (
+                                    <span className="text-[10px] text-slate-400 font-mono">{candidate.id}</span>
+                                  )}
+                                </div>
+                                <div className="grid grid-cols-2 gap-2 text-xs">
+                                  <div>
+                                    <span className="text-slate-400">Area:</span>
+                                    <span className="text-white ml-1 font-medium">{candidate.area_m2.toLocaleString()} m²</span>
+                                  </div>
+                                  <div>
+                                    <span className="text-slate-400">Pixels:</span>
+                                    <span className="text-white ml-1 font-medium">{candidate.pixel_count}</span>
+                                  </div>
+                                  <div>
+                                    <span className="text-slate-400">ΔNDVI:</span>
+                                    <span className="text-emerald-400 ml-1 font-mono font-medium">{candidate.mean_delta_ndvi.toFixed(3)}</span>
+                                  </div>
+                                  <div>
+                                    <span className="text-slate-400">ΔNDBI:</span>
+                                    <span className="text-amber-400 ml-1 font-mono font-medium">+{candidate.mean_delta_ndbi.toFixed(3)}</span>
+                                  </div>
+                                </div>
+                                <div className="mt-2.5 pt-2 border-t border-slate-700/50 flex items-center justify-between text-[11px]">
+                                  <span className="text-sky-400 font-medium">Click to inspect on map &rarr;</span>
+                                  <span className="text-slate-500 font-mono">10m GSD</span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Interpretation */}
+                    <div className="bg-slate-900/60 p-4 rounded-lg border border-slate-800">
                       <div className="flex items-start space-x-2">
-                        <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                        <Database className="w-4 h-4 text-satellite-400 shrink-0 mt-0.5" />
                         <div className="flex-1">
-                          <p className="text-xs font-semibold text-amber-300 mb-1">Scientific Limitations:</p>
-                          <ul className="text-[11px] text-amber-200/80 list-disc list-inside space-y-1">
-                            {result.analysis.limitations.map((limit, idx) => (
-                              <li key={idx}>{limit}</li>
-                            ))}
-                          </ul>
+                          <p className="text-xs text-slate-300 leading-relaxed">
+                            <strong className="text-white">Built-up Change Analysis:</strong> Using Sentinel-2 B04 (Red), B08 (NIR), and B11 (SWIR) spectral bands from real Copernicus imagery. 
+                            B11 resampled from 20m to 10m using bilinear interpolation. 
+                            Detected <strong className="text-white">{analysis.candidate_summary.total_candidates}</strong> built-up change candidates across the analyzed AOI.
+                          </p>
+                          <p className="text-[11px] text-slate-500 mt-2">
+                            Source: {analysis.source || 'Real Sentinel-2 B04/B08/B11 processing'}
+                          </p>
                         </div>
                       </div>
                     </div>
-                  )}
-                </>
-              )}
 
-              {/* Vegetation Analysis Results (existing) */}
-              {result.analysis.classification !== 'built_up_change' && (
-                <>
-                  {/* Statistics */}
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    <div className="bg-slate-800/50 p-3 rounded-lg">
-                      <span className="text-slate-400 block mb-1 text-[11px]">Change Detected</span>
-                      <span className="text-xl font-bold text-white">{(result.analysis.change_percentage * 100).toFixed(1)}%</span>
-                    </div>
-                    <div className="bg-slate-800/50 p-3 rounded-lg">
-                      <span className="text-slate-400 block mb-1 text-[11px]">Before NDVI</span>
-                      <span className="text-lg font-semibold text-emerald-400">{result.analysis.before_ndvi_avg.toFixed(3)}</span>
-                    </div>
-                    <div className="bg-slate-800/50 p-3 rounded-lg">
-                      <span className="text-slate-400 block mb-1 text-[11px]">After NDVI</span>
-                      <span className="text-lg font-semibold text-amber-400">{result.analysis.after_ndvi_avg.toFixed(3)}</span>
-                    </div>
-                    <div className="bg-slate-800/50 p-3 rounded-lg">
-                      <span className="text-slate-400 block mb-1 text-[11px]">Processing Time</span>
-                      <span className="text-lg font-semibold text-slate-200">{result.analysis.metadata.processing_time_ms.toFixed(0)}ms</span>
-                    </div>
-                  </div>
-
-                  {/* Interpretation */}
-                  <div className="bg-slate-900/60 p-4 rounded-lg border border-slate-800">
-                    <div className="flex items-start space-x-2">
-                      <Database className="w-4 h-4 text-satellite-400 shrink-0 mt-0.5" />
-                      <div className="flex-1">
-                        <p className="text-xs text-slate-300 leading-relaxed">
-                          <strong className="text-white">NDVI Analysis:</strong> Using Sentinel-2 B04 (Red) and B08 (NIR) spectral bands from real Copernicus imagery. 
-                          NDVI change detected across <strong className="text-white">{(result.analysis.change_percentage * 100).toFixed(1)}%</strong> of the analyzed AOI.
-                          {result.parsedQuery.direction === 'decrease' && 'after_ndvi_avg' in result.analysis && result.analysis.after_ndvi_avg < result.analysis.before_ndvi_avg && (
-                            <span className="text-emerald-400 ml-2">NDVI decrease detected as requested.</span>
-                          )}
-                          {result.parsedQuery.direction === 'increase' && 'after_ndvi_avg' in result.analysis && result.analysis.after_ndvi_avg > result.analysis.before_ndvi_avg && (
-                            <span className="text-emerald-400 ml-2">NDVI increase detected as requested.</span>
-                          )}
-                        </p>
-                        <p className="text-[11px] text-slate-500 mt-2">
-                          Source: {result.analysis.source || 'Real Sentinel-2 B04/B8 processing'}
-                        </p>
+                    {/* Limitations */}
+                    {analysis.limitations && (
+                      <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3">
+                        <div className="flex items-start space-x-2">
+                          <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                          <div className="flex-1">
+                            <p className="text-xs font-semibold text-amber-300 mb-1">Scientific Limitations:</p>
+                            <ul className="text-[11px] text-amber-200/80 list-disc list-inside space-y-1">
+                              {analysis.limitations.map((limit: string, idx: number) => (
+                                <li key={idx}>{limit}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                );
+              })() : (() => {
+                const analysis = result.analysis as ChangeAnalysisResult;
+                return (
+                  <>
+                    <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                      <h2 className="text-base font-semibold text-white flex items-center">
+                        <Activity className="w-4 h-4 mr-2 text-satellite-400" />
+                        Real Analysis Results
+                      </h2>
+                      <div className="flex items-center space-x-2">
+                        {getDataModeBadge(analysis.data_mode)}
+                        {analysis.data_mode === 'real_sentinel2' && (
+                          <span className="text-[10px] text-emerald-400 flex items-center">
+                            <CheckCircle2 className="w-3 h-3 mr-1" />
+                            Verified Real Data
+                          </span>
+                        )}
                       </div>
                     </div>
-                  </div>
-                </>
-              )}
+
+                    {/* Statistics */}
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      <div className="bg-slate-800/50 p-3 rounded-lg">
+                        <span className="text-slate-400 block mb-1 text-[11px]">Change Detected</span>
+                        <span className="text-xl font-bold text-white">{(analysis.change_percentage * 100).toFixed(1)}%</span>
+                      </div>
+                      <div className="bg-slate-800/50 p-3 rounded-lg">
+                        <span className="text-slate-400 block mb-1 text-[11px]">Before NDVI</span>
+                        <span className="text-lg font-semibold text-emerald-400">{analysis.before_ndvi_avg.toFixed(3)}</span>
+                      </div>
+                      <div className="bg-slate-800/50 p-3 rounded-lg">
+                        <span className="text-slate-400 block mb-1 text-[11px]">After NDVI</span>
+                        <span className="text-lg font-semibold text-amber-400">{analysis.after_ndvi_avg.toFixed(3)}</span>
+                      </div>
+                      <div className="bg-slate-800/50 p-3 rounded-lg">
+                        <span className="text-slate-400 block mb-1 text-[11px]">Processing Time</span>
+                        <span className="text-lg font-semibold text-slate-200">{analysis.metadata.processing_time_ms.toFixed(0)}ms</span>
+                      </div>
+                    </div>
+
+                    {/* Interpretation */}
+                    <div className="bg-slate-900/60 p-4 rounded-lg border border-slate-800">
+                      <div className="flex items-start space-x-2">
+                        <Database className="w-4 h-4 text-satellite-400 shrink-0 mt-0.5" />
+                        <div className="flex-1">
+                          <p className="text-xs text-slate-300 leading-relaxed">
+                            <strong className="text-white">NDVI Analysis:</strong> Using Sentinel-2 B04 (Red) and B08 (NIR) spectral bands from real Copernicus imagery. 
+                            NDVI change detected across <strong className="text-white">{(analysis.change_percentage * 100).toFixed(1)}%</strong> of the analyzed AOI.
+                            {result.parsedQuery.direction === 'decrease' && analysis.after_ndvi_avg < analysis.before_ndvi_avg && (
+                              <span className="text-emerald-400 ml-2">NDVI decrease detected as requested.</span>
+                            )}
+                            {result.parsedQuery.direction === 'increase' && analysis.after_ndvi_avg > analysis.before_ndvi_avg && (
+                              <span className="text-emerald-400 ml-2">NDVI increase detected as requested.</span>
+                            )}
+                          </p>
+                          <p className="text-[11px] text-slate-500 mt-2">
+                            Source: {analysis.source || 'Real Sentinel-2 B04/B8 processing'}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                );
+              })()}
             </div>
           )}
         </div>

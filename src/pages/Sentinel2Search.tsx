@@ -271,9 +271,22 @@ export const Sentinel2Search: React.FC = () => {
 
             {/* Error Message banner */}
             {errorMessage && (
-              <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 flex items-start space-x-2 text-xs text-red-300">
-                <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
-                <span className="flex-1">{errorMessage}</span>
+              <div className="bg-rose-500/10 border border-rose-500/30 rounded-xl p-4 shadow-lg space-y-1.5 text-rose-200">
+                <div className="flex items-center space-x-2 text-rose-400 font-semibold text-xs">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>Sentinel-2 processing unavailable</span>
+                </div>
+                <p className="text-xs text-rose-300">
+                  Live Copernicus data could not be retrieved.
+                </p>
+                <p className="text-[11px] text-slate-400">
+                  Try again when the data service is available.
+                </p>
+                {errorMessage && errorMessage !== 'Sentinel-2 processing unavailable' && errorMessage !== 'Live Copernicus data could not be retrieved.' && (
+                  <p className="text-[10px] font-mono text-slate-400 pt-1 border-t border-rose-500/20">
+                    Details: {errorMessage}
+                  </p>
+                )}
               </div>
             )}
 

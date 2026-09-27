@@ -66,7 +66,12 @@ export interface HealthResponse {
   status: string;
   version: string;
   database: string;
+  data_mode?: 'live_sentinel2' | 'real_data' | 'demo_data' | 'upstream_unavailable' | 'processing_unavailable' | string;
+  source?: string;
+  cdse_connected?: boolean;
   services: Record<string, string>;
+  error?: string;
+  detail?: string;
 }
 
 export interface ProcessingLog {
@@ -152,9 +157,10 @@ export interface ChangeAnalysisRequest {
 
 export interface ChangeAnalysisResult {
   analysis_id: string;
+  classification?: string;
   before_product_id: string;
   after_product_id: string;
-  data_mode: 'real_sentinel2' | 'demo_fallback';
+  data_mode: 'real_sentinel2' | 'demo_fallback' | 'processing_unavailable';
   processing_method: string;
   change_percentage: number;
   before_ndvi_avg: number;
@@ -175,6 +181,8 @@ export interface ChangeAnalysisResult {
     aoi_bbox: [number, number, number, number] | null;
     processing_time_ms: number;
   };
+  source?: string;
+  limitations?: string[];
   message?: string;
 }
 

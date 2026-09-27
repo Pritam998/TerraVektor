@@ -10,7 +10,7 @@ import ReviewQueue from './pages/ReviewQueue';
 import DataManagement from './pages/DataManagement';
 import SystemStatus from './pages/SystemStatus';
 import Sentinel2Search from './pages/Sentinel2Search';
-import { getHealth } from './services/api';
+import { getHealth, isExplicitDemoModeActive, setExplicitDemoMode } from './services/api';
 import { HealthResponse } from './types';
 
 type PageType = 'dashboard' | 'sentinel2-search' | 'semantic-search' | 'image-search' | 'change-analysis' | 'similar-locations' | 'review-queue' | 'data' | 'status';
@@ -19,10 +19,17 @@ function App() {
   const [currentPage, setCurrentPage] = useState<PageType>('sentinel2-search');
   const [healthStatus, setHealthStatus] = useState<HealthResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isDemoMode, setIsDemoMode] = useState<boolean>(isExplicitDemoModeActive());
 
   useEffect(() => {
     checkHealth();
-  }, []);
+  }, [isDemoMode]);
+
+  const toggleDemoMode = () => {
+    const next = !isDemoMode;
+    setIsDemoMode(next);
+    setExplicitDemoMode(next);
+  };
 
   const checkHealth = async () => {
     try {
@@ -60,6 +67,8 @@ function App() {
     }
   };
 
+  const isUpstreamDown = !healthStatus?.cdse_connected || healthStatus?.data_mode === 'upstream_unavailable';
+
   return (
     <div className="flex h-screen bg-ui-darker">
       <Sidebar 
@@ -81,18 +90,48 @@ function App() {
                 <p className="text-xs text-slate-400">SIH 2026 - Problem Statement 26227</p>
               </div>
             </div>
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-3">
               {healthStatus && (
                 <div className="flex items-center space-x-2">
-                  <div className={`w-2 h-2 rounded-full ${healthStatus.status === 'healthy' ? 'bg-green-500' : 'bg-red-500'}`} />
-                  <span className="text-sm text-slate-300">
-                    {healthStatus.status === 'healthy' ? 'System Online' : 'System Offline'}
+                  <div className={`w-2 h-2 rounded-full ${
+                    healthStatus.status === 'healthy' && !isUpstreamDown ? 'bg-green-500' : 'bg-red-500'
+                  }`} />
+                  <span className="text-xs text-slate-300">
+                    {healthStatus.status === 'healthy' && !isUpstreamDown ? 'System Online' : 'Copernicus Degraded'}
                   </span>
                 </div>
               )}
-              <div className="text-xs text-slate-500">
-                DEMO DATA
-              </div>
+
+              {/* Data Mode Indicator */}
+              {isDemoMode || healthStatus?.data_mode === 'demo_data' ? (
+                <div className="flex items-center space-x-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-500/15 text-amber-400 border border-amber-500/30">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                  <span>DEMO DATA</span>
+                </div>
+              ) : isUpstreamDown ? (
+                <div className="flex items-center space-x-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-500/15 text-rose-400 border border-rose-500/30">
+                  <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />
+                  <span>UPSTREAM UNAVAILABLE</span>
+                </div>
+              ) : (
+                <div className="flex items-center space-x-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 shadow-sm">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  <span>LIVE SENTINEL-2</span>
+                </div>
+              )}
+
+              {/* Development Mode Toggle */}
+              <button
+                onClick={toggleDemoMode}
+                title={isDemoMode ? 'Switch back to Live Sentinel-2 queries' : 'Explicitly enable Development Demo Mode'}
+                className={`text-xs px-2.5 py-1 rounded-lg border transition-all ${
+                  isDemoMode 
+                    ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 hover:bg-amber-500/30'
+                    : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-white hover:border-slate-600'
+                }`}
+              >
+                {isDemoMode ? 'Exit Demo Mode' : 'Demo Mode'}
+              </button>
             </div>
           </div>
         </header>

@@ -42,3 +42,36 @@
 .leaflet-container {
   font-family: inherit;
 }
+
+/* Pulsing effect for selected candidate vector */
+@keyframes candidatePulse {
+  0% {
+    stroke-opacity: 1;
+    stroke-width: 4px;
+  }
+  50% {
+    stroke-opacity: 0.4;
+    stroke-width: 6px;
+  }
+  100% {
+    stroke-opacity: 1;
+    stroke-width: 4px;
+  }
+}
+
+.candidate-selected-pulsing {
+  animation: candidatePulse 1.8s infinite ease-in-out;
+}
+
+.candidate-custom-tooltip {
+  background: #0f172a !important;
+  border: 1px solid #334155 !important;
+  color: #f8fafc !important;
+  border-radius: 0.5rem !important;
+  padding: 6px 10px !important;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.6) !important;
+}
+
+.candidate-custom-tooltip:before {
+  border-top-color: #0f172a !important;
+}

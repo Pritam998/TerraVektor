@@ -3,9 +3,18 @@ import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { Buffer } from 'buffer';
+import jpeg from 'jpeg-js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+function isExplicitDemoMode(req: Request): boolean {
+  if (process.env.DEMO_MODE === 'true' || process.env.VITE_DEMO_MODE === 'true') return true;
+  if (req.query?.demo_mode === 'true' || req.query?.demo_mode === '1') return true;
+  if (req.body?.demo_mode === true || req.body?.demo_mode === 'true' || req.body?.demo_mode === 1) return true;
+  if (req.headers['x-demo-mode'] === 'true') return true;
+  return false;
+}
 
 interface Scene {
   id: number;
@@ -198,19 +207,85 @@ async function startServer() {
   app.use(cors());
   app.use(express.json({ limit: '50mb' }));
 
+  let lastHealthCheck = 0;
+  let cachedCdseOnline = false;
+
+  async function checkCdseOnline(): Promise<boolean> {
+    const now = Date.now();
+    if (now - lastHealthCheck < 25000) {
+      return cachedCdseOnline;
+    }
+    try {
+      const probe = await fetch('https://catalogue.dataspace.copernicus.eu/odata/v1/Products?$top=1', {
+        headers: { 'Accept': 'application/json', 'User-Agent': 'TerraVektor-Health/1.0' },
+        signal: AbortSignal.timeout(3000)
+      });
+      cachedCdseOnline = probe.ok;
+    } catch {
+      cachedCdseOnline = false;
+    }
+    lastHealthCheck = now;
+    return cachedCdseOnline;
+  }
+
   // API Routes
   // 1. Health
-  app.get('/api/health', (_req: Request, res: Response) => {
+  app.get('/api/health', async (req: Request, res: Response) => {
+    const explicitDemo = isExplicitDemoMode(req);
+    const cdseOnline = await checkCdseOnline();
+
+    if (explicitDemo) {
+      return res.json({
+        status: 'healthy',
+        version: '1.0.0',
+        database: 'in-memory (migrated)',
+        data_mode: 'demo_data',
+        source: 'Explicit Development / Demo Mode',
+        cdse_connected: cdseOnline,
+        services: {
+          embedding: 'demo',
+          vector_search: 'demo',
+          change_detection: 'demo',
+          image_preprocessing: 'demo',
+          provenance: 'demo'
+        },
+        message: 'Explicit DEMO DATA mode is active.'
+      });
+    }
+
+    if (!cdseOnline) {
+      return res.status(503).json({
+        status: 'degraded',
+        version: '1.0.0',
+        database: 'in-memory (migrated)',
+        data_mode: 'upstream_unavailable',
+        source: 'Copernicus CDSE Unreachable',
+        cdse_connected: false,
+        services: {
+          embedding: 'active',
+          vector_search: 'active',
+          change_detection: 'upstream_unavailable',
+          image_preprocessing: 'upstream_unavailable',
+          provenance: 'active'
+        },
+        error: 'Sentinel-2 processing unavailable',
+        detail: 'Live Copernicus data could not be retrieved. Try again when the data service is available.'
+      });
+    }
+
     res.json({
       status: 'healthy',
       version: '1.0.0',
       database: 'in-memory (migrated)',
+      data_mode: 'live_sentinel2',
+      source: 'Copernicus Data Space Ecosystem (CDSE)',
+      cdse_connected: true,
       services: {
-        embedding: 'mock',
-        vector_search: 'mock',
-        change_detection: 'mock',
-        image_preprocessing: 'mock',
-        provenance: 'mock'
+        embedding: 'active',
+        vector_search: 'active',
+        change_detection: 'active',
+        image_preprocessing: 'active',
+        provenance: 'active'
       }
     });
   });
@@ -967,81 +1042,96 @@ async function startServer() {
         return res.json(responsePayload);
       }
 
-      // Resilient Fallback: Preserved if Copernicus CDSE is temporarily unreachable
-      console.log('[Sentinel-2 CDSE API] Generating fallback demonstration data (reason:', upstreamError, ')');
-      const fallbackCenterLat = bbox ? (bbox[1] + bbox[3]) / 2 : 18.5204;
-      const fallbackCenterLon = bbox ? (bbox[0] + bbox[2]) / 2 : 73.8567;
-      const span = 0.5;
+      // Only allow demonstration data if DEMO MODE was EXPLICITLY requested
+      if (isExplicitDemoMode(req)) {
+        console.log('[Sentinel-2 CDSE API] Explicit demo mode active; generating demonstration scenes');
+        const fallbackCenterLat = bbox ? (bbox[1] + bbox[3]) / 2 : 18.5204;
+        const fallbackCenterLon = bbox ? (bbox[0] + bbox[2]) / 2 : 73.8567;
+        const span = 0.5;
 
-      const fallbackCount = Math.min(5, limit);
-      const fallbackResults = Array.from({ length: fallbackCount }).map((_, i) => {
-        const offsetDays = i * 4;
-        const acq = new Date(endDate.getTime() - offsetDays * 86400000);
-        const tile = '43QCA';
-        const id = `cdse-mock-${Date.now()}-${i}`;
-        const pType = productType || 'S2MSI2A';
-        const name = `S2A_${pType}_${acq.toISOString().replace(/[-:]/g, '').slice(0, 15)}_N0510_R105_T${tile}_${acq.toISOString().slice(0, 10).replace(/-/g, '')}.SAFE`;
-        
-        const minX = fallbackCenterLon - span / 2 + (i % 2 === 0 ? 0.05 : -0.05);
-        const maxX = minX + span;
-        const minY = fallbackCenterLat - span / 2;
-        const maxY = minY + span;
+        const fallbackCount = Math.min(5, limit);
+        const fallbackResults = Array.from({ length: fallbackCount }).map((_, i) => {
+          const offsetDays = i * 4;
+          const acq = new Date(endDate.getTime() - offsetDays * 86400000);
+          const tile = '43QCA';
+          const id = `cdse-mock-${Date.now()}-${i}`;
+          const pType = productType || 'S2MSI2A';
+          const name = `S2A_${pType}_${acq.toISOString().replace(/[-:]/g, '').slice(0, 15)}_N0510_R105_T${tile}_${acq.toISOString().slice(0, 10).replace(/-/g, '')}.SAFE`;
+          
+          const minX = fallbackCenterLon - span / 2 + (i % 2 === 0 ? 0.05 : -0.05);
+          const maxX = minX + span;
+          const minY = fallbackCenterLat - span / 2;
+          const maxY = minY + span;
 
-        const coords = [
-          [minX, minY],
-          [maxX, minY],
-          [maxX, maxY],
-          [minX, maxY],
-          [minX, minY]
-        ];
+          const coords = [
+            [minX, minY],
+            [maxX, minY],
+            [maxX, maxY],
+            [minX, maxY],
+            [minX, minY]
+          ];
 
-        return {
-          id,
-          name,
-          product_type: pType,
-          acquisition_date: acq.toISOString(),
-          cloud_cover: Number((Math.random() * Math.min(maxCloudCover, 25)).toFixed(2)),
-          platform: i % 2 === 0 ? 'Sentinel-2A' : 'Sentinel-2B',
-          tile_id: tile,
-          footprint_wkt: `POLYGON ((${coords.map(c => `${c[0]} ${c[1]}`).join(', ')}))`,
-          geometry: {
-            type: 'Polygon' as const,
-            coordinates: [coords]
+          return {
+            id,
+            name,
+            product_type: pType,
+            acquisition_date: acq.toISOString(),
+            cloud_cover: Number((Math.random() * Math.min(maxCloudCover, 25)).toFixed(2)),
+            platform: i % 2 === 0 ? 'Sentinel-2A' : 'Sentinel-2B',
+            tile_id: tile,
+            footprint_wkt: `POLYGON ((${coords.map(c => `${c[0]} ${c[1]}`).join(', ')}))`,
+            geometry: {
+              type: 'Polygon' as const,
+              coordinates: [coords]
+            },
+            bbox: [minX, minY, maxX, maxY] as [number, number, number, number],
+            center: [(minX + maxX) / 2, (minY + maxY) / 2] as [number, number],
+            data_mode: 'demo_data' as const,
+            thumbnail_url: `/api/sentinel2/preview/${id}?demo_mode=true`,
+            preview_url: `/api/sentinel2/preview/${id}?demo_mode=true`,
+            download_url: `https://catalogue.dataspace.copernicus.eu/odata/v1/Products(${id})/$value`,
+            cdse_browser_url: `https://browser.dataspace.copernicus.eu/?zoom=11&lat=${fallbackCenterLat.toFixed(4)}&lng=${fallbackCenterLon.toFixed(4)}`,
+            origin: 'ESA',
+            content_length_bytes: 850000000,
+            metadata: {
+              note: 'Demonstration dataset explicitly requested by analyst'
+            }
+          };
+        });
+
+        return res.json({
+          total_results: fallbackResults.length,
+          results: fallbackResults,
+          query_params: {
+            bbox,
+            geojson_polygon,
+            start_date: startDateStr,
+            end_date: endDateStr,
+            max_cloud_cover: maxCloudCover,
+            product_type: productType || 'ALL',
+            limit,
+            force_refresh: forceRefresh,
+            demo_mode: true
           },
-          bbox: [minX, minY, maxX, maxY] as [number, number, number, number],
-          center: [(minX + maxX) / 2, (minY + maxY) / 2] as [number, number],
-          data_mode: 'demo_fallback' as const,
-          thumbnail_url: `/api/sentinel2/preview/${id}`,
-          preview_url: `/api/sentinel2/preview/${id}`,
-          download_url: `https://catalogue.dataspace.copernicus.eu/odata/v1/Products(${id})/$value`,
-          cdse_browser_url: `https://browser.dataspace.copernicus.eu/?zoom=11&lat=${fallbackCenterLat.toFixed(4)}&lng=${fallbackCenterLon.toFixed(4)}`,
-          origin: 'ESA',
-          content_length_bytes: 850000000,
-          metadata: {
-            note: 'Demonstration dataset active due to temporary CDSE endpoint timeout or network restrictions'
-          }
-        };
-      });
+          source: 'DEMO DATA (Explicit Demo Mode)',
+          data_mode: 'demo_data',
+          api_endpoint: 'https://catalogue.dataspace.copernicus.eu/odata/v1/Products',
+          odata_filter: odataFilterStr,
+          execution_time_ms: Date.now() - startTime,
+          message: 'Explicit DEMO DATA mode is active.'
+        });
+      }
 
-      return res.json({
-        total_results: fallbackResults.length,
-        results: fallbackResults,
-        query_params: {
-          bbox,
-          geojson_polygon,
-          start_date: startDateStr,
-          end_date: endDateStr,
-          max_cloud_cover: maxCloudCover,
-          product_type: productType || 'ALL',
-          limit,
-          force_refresh: forceRefresh
-        },
-        source: 'Demonstration / Fallback Sentinel-2 Data',
-        data_mode: 'demo_fallback',
-        api_endpoint: 'https://catalogue.dataspace.copernicus.eu/odata/v1/Products',
-        odata_filter: odataFilterStr,
-        execution_time_ms: Date.now() - startTime,
-        message: `Direct Copernicus CDSE endpoint timed out (${upstreamError || 'upstream delay'}). Showing demonstration Sentinel-2 scenes for the selected AOI.`
+      // Live mode without automatic fallback: return clear upstream error
+      console.warn(`[Sentinel-2 CDSE API] Upstream unavailable (reason: ${upstreamError || 'timeout'})`);
+      return res.status(503).json({
+        success: false,
+        data_mode: 'upstream_unavailable',
+        error: 'Sentinel-2 processing unavailable',
+        detail: 'Live Copernicus data could not be retrieved. Try again when the data service is available.',
+        reason: upstreamError || 'Copernicus CDSE endpoint unreachable or timed out',
+        failed_source: 'copernicus_cdse',
+        required_next_step: 'Try again when the data service is available.'
       });
     } catch (err: any) {
       console.error('[Sentinel-2 API] Error handling search request:', err);
@@ -1072,6 +1162,14 @@ async function startServer() {
 
     // B. Check for demonstration / fallback mock product
     if (productId.startsWith('cdse-mock') || productId.startsWith('mock-')) {
+      if (!isExplicitDemoMode(req)) {
+        return res.status(503).json({
+          success: false,
+          data_mode: 'processing_unavailable',
+          error: 'Sentinel-2 processing unavailable',
+          detail: 'Live Copernicus data could not be retrieved. Mock product IDs are only permitted in explicit DEMO DATA mode.'
+        });
+      }
       const svgBuffer = createDemoFallbackSvg(productId);
       res.setHeader('Content-Type', 'image/svg+xml');
       res.setHeader('X-Preview-Source', 'demo_fallback');
@@ -1179,8 +1277,11 @@ async function startServer() {
     }
 
     // E. If all resolution paths fail
-    return res.status(404).json({
-      detail: `Imagery preview unavailable for product ID: ${productId}. No official CDSE quicklook or open Sentinel-2 thumbnail asset could be retrieved for this scene.`
+    return res.status(503).json({
+      success: false,
+      data_mode: 'processing_unavailable',
+      error: 'Sentinel-2 processing unavailable',
+      detail: `Live Copernicus data could not be retrieved. Imagery preview asset is currently unavailable from upstream providers for product ID: ${productId}.`
     });
   }
 
@@ -1227,8 +1328,83 @@ async function startServer() {
 
   // In-memory cache for change analysis results
   const changeAnalysisCache = new Map<string, ChangeAnalysisResult>();
+  const builtUpAnalysisCache = new Map<string, any>();
 
   const RASTER_SERVICE_URL = process.env.RASTER_SERVICE_URL || 'http://localhost:8001';
+
+  // Georeferenced change mask SVG helper
+  function createMaskSvg(analysisId: string, type: 'change' | 'built_up', isDemo: boolean = false): Buffer | null {
+    const isBuiltUp = type === 'built_up';
+    const builtUpResult = builtUpAnalysisCache.get(analysisId);
+
+    let candidateElements = '';
+    if (builtUpResult && builtUpResult.candidates && builtUpResult.metadata?.aoi_bbox) {
+      const [minLon, minLat, maxLon, maxLat] = builtUpResult.metadata.aoi_bbox;
+      const lonSpan = maxLon - minLon || 0.05;
+      const latSpan = maxLat - minLat || 0.05;
+
+      builtUpResult.candidates.forEach((cand: any, idx: number) => {
+        if (!cand.bounding_box) return;
+        const [cMinLon, cMinLat, cMaxLon, cMaxLat] = cand.bounding_box;
+        const x = Math.max(10, Math.min(480, Math.round(((cMinLon - minLon) / lonSpan) * 512)));
+        const y = Math.max(10, Math.min(480, Math.round(((maxLat - cMaxLat) / latSpan) * 512)));
+        const w = Math.max(28, Math.min(500 - x, Math.round(((cMaxLon - cMinLon) / lonSpan) * 512)));
+        const h = Math.max(28, Math.min(500 - y, Math.round(((cMaxLat - cMinLat) / latSpan) * 512)));
+        const cx = Math.round(x + w / 2);
+        const cy = Math.round(y + h / 2);
+        const r = Math.round(Math.max(w, h) * 0.75);
+        const isConstruction = cand.type === 'new_construction_candidate';
+        const color = isConstruction ? '#f97316' : '#a855f7';
+        const gradId = `cgrad_${idx}`;
+
+        candidateElements += `
+          <radialGradient id="${gradId}" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stop-color="${color}" stop-opacity="0.9"/>
+            <stop offset="55%" stop-color="${color}" stop-opacity="0.45"/>
+            <stop offset="100%" stop-color="${color}" stop-opacity="0"/>
+          </radialGradient>
+          <circle cx="${cx}" cy="${cy}" r="${r}" fill="url(#${gradId})"/>
+          <rect x="${x}" y="${y}" width="${w}" height="${h}" rx="6" fill="${color}" fill-opacity="0.25" stroke="${color}" stroke-width="2.5" stroke-dasharray="4,4"/>
+          <rect x="${x}" y="${Math.max(4, y - 18)}" width="${Math.min(130, Math.max(w, 90))}" height="16" rx="3" fill="rgba(15,23,42,0.92)" stroke="${color}" stroke-width="1"/>
+          <text x="${x + 6}" y="${Math.max(16, y - 6)}" font-family="system-ui, sans-serif" font-size="9" font-weight="bold" fill="${color}">${isConstruction ? '🟧 New Construction' : '🟪 Expansion'}</text>
+        `;
+      });
+    }
+
+    if (!builtUpResult && !changeAnalysisCache.has(analysisId)) {
+      if (!isDemo && !analysisId.includes('demo')) {
+        return null;
+      }
+      candidateElements = `
+        <radialGradient id="demoHotspot1" cx="38%" cy="42%" r="28%">
+          <stop offset="0%" stop-color="${isBuiltUp ? '#f97316' : '#ef4444'}" stop-opacity="0.85"/>
+          <stop offset="65%" stop-color="${isBuiltUp ? '#eab308' : '#f97316'}" stop-opacity="0.5"/>
+          <stop offset="100%" stop-color="#10b981" stop-opacity="0"/>
+        </radialGradient>
+        <circle cx="195" cy="215" r="120" fill="url(#demoHotspot1)"/>
+        <rect x="140" y="165" width="110" height="100" rx="4" fill="none" stroke="${isBuiltUp ? '#f97316' : '#ef4444'}" stroke-width="2" stroke-dasharray="4,4"/>
+        <text x="145" y="155" font-family="system-ui, sans-serif" font-size="9" font-weight="bold" fill="#f97316">DEMO DATA</text>
+      `;
+    } else if (!candidateElements) {
+      candidateElements = `
+        <text x="256" y="256" text-anchor="middle" font-family="system-ui, sans-serif" font-size="12" fill="rgba(255,255,255,0.4)">No spectral change candidates detected above threshold</text>
+      `;
+    }
+
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+      <defs>
+        <pattern id="maskGrid" width="24" height="24" patternUnits="userSpaceOnUse">
+          <path d="M 24 0 L 0 0 0 24" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="0.5"/>
+        </pattern>
+      </defs>
+      <rect width="512" height="512" fill="rgba(0,0,0,0.12)"/>
+      <rect width="512" height="512" fill="url(#maskGrid)"/>
+      ${candidateElements}
+      <rect x="16" y="16" width="220" height="26" rx="5" fill="rgba(15,23,42,0.88)" stroke="#38bdf8" stroke-width="1"/>
+      <text x="26" y="33" font-family="system-ui, sans-serif" font-size="11" font-weight="600" fill="#38bdf8">${isBuiltUp ? 'Sentinel-2 Built-Up Mask' : 'NDVI Difference Mask'}</text>
+    </svg>`;
+    return Buffer.from(svg, 'utf-8');
+  }
 
   app.post('/api/change/analyze-sentinel2', async (req: Request, res: Response) => {
     const startTime = Date.now();
@@ -1243,8 +1419,10 @@ async function startServer() {
         return res.status(400).json({ detail: 'before_product_id and after_product_id must be different' });
       }
 
+      const explicitDemo = isExplicitDemoMode(req);
+
       // Check cache
-      const cacheKey = `${before_product_id}_${after_product_id}_${method}`;
+      const cacheKey = `${before_product_id}_${after_product_id}_${method}_${explicitDemo ? 'demo' : 'live'}`;
       if (changeAnalysisCache.has(cacheKey)) {
         const cached = changeAnalysisCache.get(cacheKey)!;
         console.log(`[Change Analysis] Cache HIT for ${cacheKey}`);
@@ -1262,12 +1440,12 @@ async function startServer() {
         if (foundAfter) afterProduct = foundAfter;
       }
 
-      // If not in cache, try to fetch from CDSE
       if (!beforeProduct) {
         try {
           const metaUrl = `https://catalogue.dataspace.copernicus.eu/odata/v1/Products(${before_product_id})?$expand=Attributes`;
           const metaRes = await fetch(metaUrl, {
-            headers: { 'Accept': 'application/json', 'User-Agent': 'TerraVektor-Satellite-Discovery/1.0' }
+            headers: { 'Accept': 'application/json', 'User-Agent': 'TerraVektor-Satellite-Discovery/1.0' },
+            signal: AbortSignal.timeout(4000)
           });
           if (metaRes.ok) {
             const metaData: any = await metaRes.json();
@@ -1293,7 +1471,8 @@ async function startServer() {
         try {
           const metaUrl = `https://catalogue.dataspace.copernicus.eu/odata/v1/Products(${after_product_id})?$expand=Attributes`;
           const metaRes = await fetch(metaUrl, {
-            headers: { 'Accept': 'application/json', 'User-Agent': 'TerraVektor-Satellite-Discovery/1.0' }
+            headers: { 'Accept': 'application/json', 'User-Agent': 'TerraVektor-Satellite-Discovery/1.0' },
+            signal: AbortSignal.timeout(4000)
           });
           if (metaRes.ok) {
             const metaData: any = await metaRes.json();
@@ -1315,20 +1494,41 @@ async function startServer() {
         }
       }
 
-      // If products not found, return processing unavailable error
       if (!beforeProduct || !afterProduct) {
-        return res.status(503).json({
-          success: false,
-          data_mode: 'processing_unavailable',
-          reason: 'One or both Sentinel-2 products not found in cache or CDSE',
-          failed_source: 'product_discovery',
-          required_next_step: 'Ensure products are discovered via Sentinel-2 search first'
-        });
+        if (explicitDemo) {
+          if (!beforeProduct) {
+            beforeProduct = {
+              id: before_product_id,
+              name: `DEMO_S2A_MSIL2A_${before_product_id}`,
+              acquisition_date: new Date(Date.now() - 30 * 86400000).toISOString(),
+              cloud_cover: 5.0,
+              tile_id: '43QCA',
+              data_mode: 'demo_data'
+            };
+          }
+          if (!afterProduct) {
+            afterProduct = {
+              id: after_product_id,
+              name: `DEMO_S2B_MSIL2A_${after_product_id}`,
+              acquisition_date: new Date().toISOString(),
+              cloud_cover: 8.0,
+              tile_id: '43QCA',
+              data_mode: 'demo_data'
+            };
+          }
+        } else {
+          return res.status(503).json({
+            success: false,
+            data_mode: 'upstream_unavailable',
+            error: 'Sentinel-2 processing unavailable',
+            detail: `Live Copernicus data could not be retrieved for product ID: ${!beforeProduct ? before_product_id : after_product_id}.`,
+            reason: 'Scene metadata not found in Copernicus CDSE catalog',
+            failed_source: 'copernicus_cdse',
+            required_next_step: 'Try again when the data service is available.'
+          });
+        }
       }
 
-      // Call Python raster service for real B4/B8 processing
-      console.log(`[Change Analysis] Calling Python raster service for real NDVI calculation`);
-      
       const rasterRequestBody = {
         before_product_name: beforeProduct.name,
         after_product_name: afterProduct.name,
@@ -1336,28 +1536,52 @@ async function startServer() {
         change_threshold: 0.2
       };
 
-      const rasterResponse = await fetch(`${RASTER_SERVICE_URL}/analyze-change`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(rasterRequestBody)
-      });
-
-      if (!rasterResponse.ok) {
-        const errorDetail = await rasterResponse.text();
-        console.error(`[Change Analysis] Raster service error: ${rasterResponse.status} - ${errorDetail}`);
-        return res.status(503).json({
-          success: false,
-          data_mode: 'processing_unavailable',
-          reason: `Python raster service unavailable: ${errorDetail}`,
-          failed_source: 'raster_service',
-          required_next_step: 'Start Python raster service and ensure dependencies are installed'
+      let rasterResult: any = null;
+      try {
+        const rasterResponse = await fetch(`${RASTER_SERVICE_URL}/analyze-change`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(rasterRequestBody),
+          signal: AbortSignal.timeout(2500)
         });
+        if (rasterResponse.ok) {
+          rasterResult = await rasterResponse.json();
+        }
+      } catch {
+        // Raster service unreachable
       }
 
-      const rasterResult = await rasterResponse.json();
-
-      if (!rasterResult.success) {
-        return res.status(503).json(rasterResult);
+      if (!rasterResult || !rasterResult.success) {
+        if (explicitDemo) {
+          const totalPixels = 50000;
+          const changePct = 0.142;
+          const changedPix = Math.round(totalPixels * changePct);
+          rasterResult = {
+            success: true,
+            data_mode: 'demo_data',
+            source: 'DEMO DATA (Explicit Demo Mode)',
+            statistics: {
+              total_valid_pixels: totalPixels,
+              changed_pixels: changedPix,
+              unchanged_pixels: totalPixels - changedPix,
+              change_percentage: changePct,
+              before_mean_ndvi: 0.582,
+              after_mean_ndvi: 0.435,
+              mean_ndvi_difference: -0.147
+            },
+            processing_time_ms: Date.now() - startTime
+          };
+        } else {
+          return res.status(503).json({
+            success: false,
+            data_mode: 'processing_unavailable',
+            error: 'Sentinel-2 processing unavailable',
+            detail: 'Live Copernicus data could not be retrieved. Sentinel-2 raster processing is currently unavailable.',
+            reason: 'Raster processing service is unreachable or spectral bands could not be read',
+            failed_source: 'raster_processing_engine',
+            required_next_step: 'Try again when the data service is available.'
+          });
+        }
       }
 
       // Transform raster service result to our API format
@@ -1389,23 +1613,27 @@ async function startServer() {
           processing_time_ms: rasterResult.processing_time_ms
         },
         source: rasterResult.source,
-        message: `Real NDVI calculation from Sentinel-2 B4/B8 spectral bands via public COG mirror`
+        message: rasterResult.data_mode === 'demo_data' 
+          ? 'Explicit DEMO DATA mode result.'
+          : 'Real NDVI calculation from Sentinel-2 B4/B8 spectral bands'
       };
 
       // Cache result
       changeAnalysisCache.set(cacheKey, result);
 
-      console.log(`[Change Analysis] Completed real analysis ${analysisId} in ${Date.now() - startTime}ms`);
+      console.log(`[Change Analysis] Completed analysis ${analysisId} in ${Date.now() - startTime}ms`);
       res.json(result);
 
     } catch (err: any) {
       console.error('[Change Analysis] Error:', err);
-      return res.status(500).json({
+      return res.status(503).json({
         success: false,
         data_mode: 'processing_unavailable',
+        error: 'Sentinel-2 processing unavailable',
+        detail: 'Live Copernicus data could not be retrieved. Sentinel-2 raster processing failed.',
         reason: err.message,
         failed_source: 'express_server',
-        required_next_step: 'Check error logs and service configuration'
+        required_next_step: 'Try again when the data service is available.'
       });
     }
   });
@@ -1413,32 +1641,36 @@ async function startServer() {
   // Change mask visualization endpoint
   app.get('/api/change/mask/:analysisId', (req: Request, res: Response) => {
     const { analysisId } = req.params;
-    
-    // Find the analysis result
-    let analysisResult: ChangeAnalysisResult | null = null;
-    for (const result of changeAnalysisCache.values()) {
-      if (result.analysis_id === analysisId) {
-        analysisResult = result;
-        break;
-      }
-    }
-
-    if (!analysisResult) {
-      return res.status(404).json({ detail: 'Change analysis not found' });
-    }
-
-    // Return processing unavailable if not real data
-    if (analysisResult.data_mode !== 'real_sentinel2') {
+    const explicitDemo = isExplicitDemoMode(req);
+    const svgBuf = createMaskSvg(analysisId, 'change', explicitDemo);
+    if (!svgBuf) {
       return res.status(503).json({
-        detail: 'Change mask visualization only available for real Sentinel-2 data'
+        success: false,
+        data_mode: 'processing_unavailable',
+        error: 'Sentinel-2 processing unavailable',
+        detail: 'Live Copernicus data could not be retrieved. Change mask unavailable.'
       });
     }
+    res.setHeader('Content-Type', 'image/svg+xml');
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    res.send(svgBuf);
+  });
 
-    // For now, return a placeholder since we'd need the actual change mask from Python service
-    // The Python service should return the actual change mask raster
-    res.status(503).json({
-      detail: 'Change mask visualization requires Python raster service to return actual change mask raster'
-    });
+  app.get('/api/change/built-up-mask/:analysisId', (req: Request, res: Response) => {
+    const { analysisId } = req.params;
+    const explicitDemo = isExplicitDemoMode(req);
+    const svgBuf = createMaskSvg(analysisId, 'built_up', explicitDemo);
+    if (!svgBuf) {
+      return res.status(503).json({
+        success: false,
+        data_mode: 'processing_unavailable',
+        error: 'Sentinel-2 processing unavailable',
+        detail: 'Live Copernicus data could not be retrieved. Built-up change mask unavailable.'
+      });
+    }
+    res.setHeader('Content-Type', 'image/svg+xml');
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    res.send(svgBuf);
   });
 
   // Get list of available change analyses
@@ -1601,7 +1833,8 @@ async function startServer() {
   async function findBestScene(
     aoi: [number, number, number, number],
     targetDate: string,
-    maxCloudCover: number = 30
+    maxCloudCover: number = 30,
+    isDemo: boolean = false
   ): Promise<any | null> {
     // Convert target date to a search window (± 30 days)
     const targetDateObj = new Date(targetDate);
@@ -1610,21 +1843,25 @@ async function startServer() {
     const endDate = new Date(targetDateObj);
     endDate.setDate(endDate.getDate() + 30);
 
-    const searchParams = {
+    const searchParams: any = {
       bbox: aoi,
       start_date: startDate.toISOString().split('T')[0],
       end_date: endDate.toISOString().split('T')[0],
       max_cloud_cover: maxCloudCover,
       product_type: 'S2MSI2A' as const,
       limit: 10,
-      force_refresh: false
+      force_refresh: false,
+      demo_mode: isDemo
     };
 
     try {
       // Call the existing Sentinel-2 search endpoint internally via HTTP
       const response = await fetch(`http://localhost:${process.env.PORT || '3000'}/api/sentinel2/search`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          ...(isDemo ? { 'x-demo-mode': 'true' } : {})
+        },
         body: JSON.stringify(searchParams)
       });
 
@@ -1642,7 +1879,7 @@ async function startServer() {
       // Select the scene closest to target date with lowest cloud cover
       const targetTime = targetDateObj.getTime();
       const sorted = data.results
-        .filter((p: any) => p.data_mode !== 'demo_fallback')
+        .filter((p: any) => isDemo || p.data_mode !== 'demo_data')
         .sort((a: any, b: any) => {
           const dateA = new Date(a.acquisition_date).getTime();
           const dateB = new Date(b.acquisition_date).getTime();
@@ -1666,6 +1903,7 @@ async function startServer() {
     const startTime = Date.now();
     try {
       const { query } = req.body;
+      const explicitDemo = isExplicitDemoMode(req);
 
       if (!query || typeof query !== 'string') {
         return res.status(400).json({
@@ -1696,78 +1934,89 @@ async function startServer() {
       }
 
       // Find Before scene near start date
-      const beforeScene = await findBestScene(parsedQuery.aoi, parsedQuery.startDate, 30);
+      const beforeScene = await findBestScene(parsedQuery.aoi, parsedQuery.startDate, 30, explicitDemo);
 
       if (!beforeScene) {
-        return res.json({
+        return res.status(503).json({
           success: false,
           parsedQuery,
           beforeScene: null,
           afterScene: null,
           analysis: null,
-          error: 'No suitable Before scene found',
-          message: `No suitable Sentinel-2 imagery found near ${parsedQuery.startDate} for ${parsedQuery.location}. Try adjusting the date range.`
+          data_mode: explicitDemo ? 'demo_data' : 'upstream_unavailable',
+          error: 'Sentinel-2 processing unavailable',
+          detail: 'Live Copernicus data could not be retrieved. No suitable Before scene found.',
+          message: 'Sentinel-2 processing unavailable: Live Copernicus data could not be retrieved. Try again when the data service is available.'
         });
       }
 
       // Find After scene near end date
-      const afterScene = await findBestScene(parsedQuery.aoi, parsedQuery.endDate, 30);
+      const afterScene = await findBestScene(parsedQuery.aoi, parsedQuery.endDate, 30, explicitDemo);
 
       if (!afterScene) {
-        return res.json({
+        return res.status(503).json({
           success: false,
           parsedQuery,
           beforeScene,
           afterScene: null,
           analysis: null,
-          error: 'No suitable After scene found',
-          message: `No suitable Sentinel-2 imagery found near ${parsedQuery.endDate} for ${parsedQuery.location}. Try adjusting the date range.`
+          data_mode: explicitDemo ? 'demo_data' : 'upstream_unavailable',
+          error: 'Sentinel-2 processing unavailable',
+          detail: 'Live Copernicus data could not be retrieved. No suitable After scene found.',
+          message: 'Sentinel-2 processing unavailable: Live Copernicus data could not be retrieved. Try again when the data service is available.'
         });
       }
 
       // Call the appropriate analysis endpoint based on change type
       try {
-        let analysisRequestBody;
-        let analysisEndpoint;
+        let analysisRequestBody: any;
+        let analysisEndpoint: string;
         
         if (parsedQuery.changeType === 'construction' || parsedQuery.changeType === 'expansion' || parsedQuery.changeType === 'built_up') {
           // Use built-up change detection endpoint
           analysisRequestBody = {
-            before_product_name: beforeScene.name,
-            after_product_name: afterScene.name,
-            bbox: parsedQuery.aoi,
+            before_product_id: beforeScene.id,
+            after_product_id: afterScene.id,
+            aoi_bbox: parsedQuery.aoi,
             ndbi_increase_threshold: 0.1,
             ndvi_decrease_threshold: -0.1,
-            min_area_pixels: 50
+            min_area_pixels: 50,
+            demo_mode: explicitDemo
           };
-          analysisEndpoint = `${RASTER_SERVICE_URL}/analyze-built-up`;
+          analysisEndpoint = `http://localhost:${process.env.PORT || '3000'}/api/change/analyze-built-up`;
         } else {
           // Use existing NDVI change analysis endpoint
           analysisRequestBody = {
             before_product_id: beforeScene.id,
             after_product_id: afterScene.id,
             aoi_bbox: parsedQuery.aoi,
-            method: 'ndvi_differencing' as const
+            method: 'ndvi_differencing' as const,
+            demo_mode: explicitDemo
           };
           analysisEndpoint = `http://localhost:${process.env.PORT || '3000'}/api/change/analyze-sentinel2`;
         }
 
         const analysisResponse = await fetch(analysisEndpoint, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            ...(explicitDemo ? { 'x-demo-mode': 'true' } : {})
+          },
           body: JSON.stringify(analysisRequestBody)
         });
 
         if (!analysisResponse.ok) {
-          const errorText = await analysisResponse.text();
-          return res.json({
+          const errorPayload: any = await analysisResponse.json().catch(() => null);
+          return res.status(503).json({
             success: false,
             parsedQuery,
             beforeScene,
             afterScene,
             analysis: null,
-            error: 'Change analysis failed',
-            message: `Real change processing failed: ${errorText}`
+            data_mode: 'processing_unavailable',
+            error: 'Sentinel-2 processing unavailable',
+            detail: errorPayload?.detail || 'Live Copernicus data could not be retrieved.',
+            message: 'Sentinel-2 processing unavailable: Live Copernicus data could not be retrieved. Try again when the data service is available.'
           });
         }
 
@@ -1779,18 +2028,21 @@ async function startServer() {
           beforeScene,
           afterScene,
           analysis,
+          data_mode: analysis.data_mode,
           execution_time_ms: Date.now() - startTime
         });
 
       } catch (analysisErr: any) {
-        return res.json({
+        return res.status(503).json({
           success: false,
           parsedQuery,
           beforeScene,
           afterScene,
           analysis: null,
-          error: 'Change analysis service error',
-          message: `Real change processing is currently unavailable: ${analysisErr.message}`
+          data_mode: 'processing_unavailable',
+          error: 'Sentinel-2 processing unavailable',
+          detail: 'Live Copernicus data could not be retrieved.',
+          message: 'Sentinel-2 processing unavailable: Live Copernicus data could not be retrieved. Try again when the data service is available.'
         });
       }
 
@@ -1798,8 +2050,9 @@ async function startServer() {
       console.error('[Semantic Retrieval] Error:', err);
       return res.status(500).json({
         success: false,
-        error: 'Internal server error',
-        message: err.message
+        error: 'Sentinel-2 processing unavailable',
+        detail: 'Live Copernicus data could not be retrieved.',
+        message: 'Sentinel-2 processing unavailable: Live Copernicus data could not be retrieved. Try again when the data service is available.'
       });
     }
   });
@@ -1824,6 +2077,8 @@ async function startServer() {
         });
       }
 
+      const explicitDemo = isExplicitDemoMode(req);
+
       // Fetch product metadata from cache or CDSE
       let beforeProduct: any = null;
       let afterProduct: any = null;
@@ -1840,7 +2095,8 @@ async function startServer() {
         try {
           const metaUrl = `https://catalogue.dataspace.copernicus.eu/odata/v1/Products(${before_product_id})?$expand=Attributes`;
           const metaRes = await fetch(metaUrl, {
-            headers: { 'Accept': 'application/json', 'User-Agent': 'TerraVektor-Satellite-Discovery/1.0' }
+            headers: { 'Accept': 'application/json', 'User-Agent': 'TerraVektor-Satellite-Discovery/1.0' },
+            signal: AbortSignal.timeout(4000)
           });
           if (metaRes.ok) {
             const metaData: any = await metaRes.json();
@@ -1866,7 +2122,8 @@ async function startServer() {
         try {
           const metaUrl = `https://catalogue.dataspace.copernicus.eu/odata/v1/Products(${after_product_id})?$expand=Attributes`;
           const metaRes = await fetch(metaUrl, {
-            headers: { 'Accept': 'application/json', 'User-Agent': 'TerraVektor-Satellite-Discovery/1.0' }
+            headers: { 'Accept': 'application/json', 'User-Agent': 'TerraVektor-Satellite-Discovery/1.0' },
+            signal: AbortSignal.timeout(4000)
           });
           if (metaRes.ok) {
             const metaData: any = await metaRes.json();
@@ -1888,51 +2145,152 @@ async function startServer() {
         }
       }
 
-      // If products not found, return processing unavailable error
       if (!beforeProduct || !afterProduct) {
-        return res.status(503).json({
-          success: false,
-          data_mode: 'processing_unavailable',
-          reason: 'One or both Sentinel-2 products not found in cache or CDSE',
-          failed_source: 'product_discovery',
-          required_next_step: 'Ensure products are discovered via Sentinel-2 search first'
-        });
+        if (explicitDemo) {
+          if (!beforeProduct) {
+            beforeProduct = {
+              id: before_product_id,
+              name: `DEMO_S2A_MSIL2A_${before_product_id}`,
+              acquisition_date: new Date(Date.now() - 30 * 86400000).toISOString(),
+              cloud_cover: 5.0,
+              tile_id: '43QCA',
+              data_mode: 'demo_data'
+            };
+          }
+          if (!afterProduct) {
+            afterProduct = {
+              id: after_product_id,
+              name: `DEMO_S2B_MSIL2A_${after_product_id}`,
+              acquisition_date: new Date().toISOString(),
+              cloud_cover: 8.0,
+              tile_id: '43QCA',
+              data_mode: 'demo_data'
+            };
+          }
+        } else {
+          return res.status(503).json({
+            success: false,
+            data_mode: 'upstream_unavailable',
+            error: 'Sentinel-2 processing unavailable',
+            detail: `Live Copernicus data could not be retrieved for product ID: ${!beforeProduct ? before_product_id : after_product_id}.`,
+            reason: 'Scene metadata not found in Copernicus CDSE catalog',
+            failed_source: 'copernicus_cdse',
+            required_next_step: 'Try again when the data service is available.'
+          });
+        }
       }
 
-      // Call Python raster service for real B04/B08/B11 processing
-      console.log(`[Built-up Analysis] Calling Python raster service for real NDVI/NDBI calculation`);
-      
+      const effectiveBbox: [number, number, number, number] = aoi_bbox || [73.70, 18.40, 74.05, 18.70];
       const rasterRequestBody = {
         before_product_name: beforeProduct.name,
         after_product_name: afterProduct.name,
-        bbox: aoi_bbox || [73.70, 18.40, 74.05, 18.70],
+        bbox: effectiveBbox,
         ndbi_increase_threshold,
         ndvi_decrease_threshold,
         min_area_pixels
       };
 
-      const rasterResponse = await fetch(`${RASTER_SERVICE_URL}/analyze-built-up`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(rasterRequestBody)
-      });
-
-      if (!rasterResponse.ok) {
-        const errorDetail = await rasterResponse.text();
-        console.error(`[Built-up Analysis] Raster service error: ${rasterResponse.status} - ${errorDetail}`);
-        return res.status(503).json({
-          success: false,
-          data_mode: 'processing_unavailable',
-          reason: `Python raster service unavailable: ${errorDetail}`,
-          failed_source: 'raster_service',
-          required_next_step: 'Start Python raster service and ensure dependencies are installed'
+      let rasterResult: any = null;
+      try {
+        const rasterResponse = await fetch(`${RASTER_SERVICE_URL}/analyze-built-up`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(rasterRequestBody),
+          signal: AbortSignal.timeout(2500)
         });
+        if (rasterResponse.ok) {
+          rasterResult = await rasterResponse.json();
+        }
+      } catch {
+        // Raster service unreachable
       }
 
-      const rasterResult = await rasterResponse.json();
-
-      if (!rasterResult.success) {
-        return res.status(503).json(rasterResult);
+      if (!rasterResult || !rasterResult.success) {
+        if (explicitDemo) {
+          const centerLon = (effectiveBbox[0] + effectiveBbox[2]) / 2;
+          const centerLat = (effectiveBbox[1] + effectiveBbox[3]) / 2;
+          rasterResult = {
+            success: true,
+            data_mode: 'demo_data',
+            source: 'DEMO DATA (Explicit Demo Mode)',
+            metrics: {
+              mean_ndvi_before: 0.512,
+              mean_ndvi_after: 0.354,
+              mean_ndvi_change: -0.158,
+              mean_ndbi_before: -0.092,
+              mean_ndbi_after: 0.174,
+              mean_ndbi_change: 0.266,
+              total_valid_pixels: 48000,
+              changed_pixels: 4320,
+              change_percentage: 0.09
+            },
+            candidate_summary: {
+              total_candidates: 3,
+              new_construction_count: 2,
+              building_expansion_count: 1
+            },
+            candidates: [
+              {
+                id: 'candidate_c1',
+                type: 'new_construction_candidate',
+                pixel_count: 2450,
+                area_m2: 245000,
+                centroid: [Number((centerLon + 0.015).toFixed(4)), Number((centerLat + 0.012).toFixed(4))],
+                bounding_box: [effectiveBbox[0] + 0.01, effectiveBbox[1] + 0.01, effectiveBbox[0] + 0.05, effectiveBbox[1] + 0.04],
+                mean_delta_ndvi: -0.21,
+                mean_delta_ndbi: 0.31,
+                min_delta_ndvi: -0.42,
+                max_delta_ndbi: 0.58
+              },
+              {
+                id: 'candidate_c2',
+                type: 'new_construction_candidate',
+                pixel_count: 1120,
+                area_m2: 112000,
+                centroid: [Number((centerLon - 0.018).toFixed(4)), Number((centerLat - 0.014).toFixed(4))],
+                bounding_box: [effectiveBbox[2] - 0.05, effectiveBbox[3] - 0.04, effectiveBbox[2] - 0.01, effectiveBbox[3] - 0.01],
+                mean_delta_ndvi: -0.18,
+                mean_delta_ndbi: 0.28,
+                min_delta_ndvi: -0.37,
+                max_delta_ndbi: 0.52
+              },
+              {
+                id: 'candidate_e1',
+                type: 'building_expansion_candidate',
+                pixel_count: 750,
+                area_m2: 75000,
+                centroid: [Number((centerLon + 0.025).toFixed(4)), Number((centerLat - 0.02).toFixed(4))],
+                bounding_box: [effectiveBbox[0] + 0.06, effectiveBbox[1] + 0.02, effectiveBbox[0] + 0.09, effectiveBbox[1] + 0.04],
+                mean_delta_ndvi: -0.14,
+                mean_delta_ndbi: 0.24,
+                min_delta_ndvi: -0.29,
+                max_delta_ndbi: 0.44
+              }
+            ],
+            thresholds: {
+              ndbi_increase_threshold,
+              ndvi_decrease_threshold,
+              min_area_pixels
+            },
+            limitations: [
+              'Explicit Demonstration Dataset (Sample built-up candidates for development/demo mode)',
+              'B11 has 20m native resolution resampled to 10m',
+              'Small individual structures below 10m pixel size require sub-meter satellite validation',
+              'Seasonal vegetation and bare soil variations can affect spectral signatures'
+            ],
+            processing_time_ms: Date.now() - startTime
+          };
+        } else {
+          return res.status(503).json({
+            success: false,
+            data_mode: 'processing_unavailable',
+            error: 'Sentinel-2 processing unavailable',
+            detail: 'Live Copernicus data could not be retrieved. Sentinel-2 built-up raster processing is currently unavailable.',
+            reason: 'Built-up raster processing service is unreachable or spectral bands (B04, B08, B11) could not be retrieved',
+            failed_source: 'raster_processing_engine',
+            required_next_step: 'Try again when the data service is available.'
+          });
+        }
       }
 
       // Transform raster service result to our API format
@@ -1971,20 +2329,27 @@ async function startServer() {
         },
         source: rasterResult.source,
         limitations: rasterResult.limitations,
-        message: `Real NDVI/NDBI calculation from Sentinel-2 B04/B08/B11 spectral bands via public COG mirror`
+        message: rasterResult.data_mode === 'demo_data'
+          ? 'Explicit DEMO DATA mode result.'
+          : 'Real NDVI/NDBI calculation from Sentinel-2 B04/B08/B11 spectral bands'
       };
 
-      console.log(`[Built-up Analysis] Completed real analysis ${analysisId} in ${Date.now() - startTime}ms`);
+      // Cache result
+      builtUpAnalysisCache.set(analysisId, result);
+
+      console.log(`[Built-up Analysis] Completed analysis ${analysisId} in ${Date.now() - startTime}ms`);
       res.json(result);
 
     } catch (err: any) {
       console.error('[Built-up Analysis] Error:', err);
-      return res.status(500).json({
+      return res.status(503).json({
         success: false,
         data_mode: 'processing_unavailable',
+        error: 'Sentinel-2 processing unavailable',
+        detail: 'Live Copernicus data could not be retrieved. Sentinel-2 built-up raster processing failed.',
         reason: err.message,
         failed_source: 'express_server',
-        required_next_step: 'Check error logs and service configuration'
+        required_next_step: 'Try again when the data service is available.'
       });
     }
   });

@@ -15,6 +15,22 @@ import {
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 
+export const isExplicitDemoModeActive = (): boolean => {
+  if (typeof window === 'undefined') return false;
+  const urlParam = new URLSearchParams(window.location.search).get('demo_mode');
+  if (urlParam === 'true' || urlParam === '1') return true;
+  return localStorage.getItem('terra_demo_mode') === 'true';
+};
+
+export const setExplicitDemoMode = (enabled: boolean): void => {
+  if (typeof window === 'undefined') return;
+  if (enabled) {
+    localStorage.setItem('terra_demo_mode', 'true');
+  } else {
+    localStorage.removeItem('terra_demo_mode');
+  }
+};
+
 const api = axios.create({
   baseURL: API_BASE_URL,
   headers: {
@@ -22,10 +38,34 @@ const api = axios.create({
   },
 });
 
+api.interceptors.request.use((config) => {
+  if (isExplicitDemoModeActive()) {
+    config.headers['x-demo-mode'] = 'true';
+  }
+  return config;
+});
+
 // Health check
 export const getHealth = async (): Promise<HealthResponse> => {
-  const response = await api.get('/api/health');
-  return response.data;
+  try {
+    const response = await api.get('/api/health');
+    return response.data;
+  } catch (err: any) {
+    if (err.response?.data) {
+      return err.response.data;
+    }
+    return {
+      status: 'offline',
+      version: '1.0.0',
+      database: 'in-memory',
+      data_mode: 'upstream_unavailable',
+      source: 'Copernicus CDSE Unreachable',
+      cdse_connected: false,
+      services: {},
+      error: 'Sentinel-2 processing unavailable',
+      detail: 'Live Copernicus data could not be retrieved. Try again when the data service is available.'
+    };
+  }
 };
 
 // Scenes
