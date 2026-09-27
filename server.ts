@@ -1454,6 +1454,539 @@ async function startServer() {
         change_percentage: a.change_percentage,
         created_at: new Date().toISOString()
       }))
+    });
+  });
+
+  // 10. Semantic Retrieval (Natural Language Query Processing)
+  interface ParsedQuery {
+    location: string;
+    aoi: [number, number, number, number] | null;
+    startDate: string | null;
+    endDate: string | null;
+    phenomenon: string;
+    direction: 'increase' | 'decrease' | 'change' | null;
+    changeType?: 'vegetation' | 'built_up' | 'construction' | 'expansion' | null;
+    error?: string;
+  }
+
+  // AOI Presets for Indian cities
+  const AOI_PRESETS: Record<string, [number, number, number, number]> = {
+    'pune': [73.70, 18.40, 74.05, 18.70],
+    'mumbai': [72.75, 18.90, 73.10, 19.25],
+    'bengaluru': [77.45, 12.85, 77.75, 13.10],
+    'delhi': [76.90, 28.45, 77.35, 28.85],
+    'chennai': [80.10, 12.90, 80.35, 13.20],
+    'jaipur': [75.65, 26.80, 75.95, 27.05]
+  };
+
+  // Location name normalization
+  const LOCATION_ALIASES: Record<string, string> = {
+    'pune': 'pune',
+    'poona': 'pune',
+    'mumbai': 'mumbai',
+    'bombay': 'mumbai',
+    'bengaluru': 'bengaluru',
+    'bangalore': 'bengaluru',
+    'delhi': 'delhi',
+    'new delhi': 'delhi',
+    'chennai': 'chennai',
+    'madras': 'chennai',
+    'jaipur': 'jaipur'
+  };
+
+  function parseNaturalLanguageQuery(query: string): ParsedQuery {
+    const lowerQuery = query.toLowerCase().trim();
+    
+    const result: ParsedQuery = {
+      location: '',
+      aoi: null,
+      startDate: null,
+      endDate: null,
+      phenomenon: 'vegetation',
+      direction: null,
+      changeType: null
+    };
+
+    // Extract location
+    let foundLocation = '';
+    for (const [alias, canonical] of Object.entries(LOCATION_ALIASES)) {
+      if (lowerQuery.includes(alias)) {
+        foundLocation = canonical;
+        break;
+      }
+    }
+
+    if (!foundLocation) {
+      result.error = 'Location not recognized. Please specify one of: Pune, Mumbai, Bengaluru, Delhi, Chennai, or Jaipur.';
+      return result;
+    }
+
+    result.location = foundLocation.charAt(0).toUpperCase() + foundLocation.slice(1);
+    result.aoi = AOI_PRESETS[foundLocation];
+
+    // Extract dates - patterns like "May 2024", "January 2026", "between May 2024 and May 2026"
+    const monthNames = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
+    const monthShortNames = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+
+    // Try "between X and Y" pattern
+    const betweenPattern = /between\s+(\w+)\s+(\d{4})\s+and\s+(\w+)\s+(\d{4})/i;
+    const betweenMatch = lowerQuery.match(betweenPattern);
+    
+    if (betweenMatch) {
+      const startMonthStr = betweenMatch[1];
+      const startYear = parseInt(betweenMatch[2]);
+      const endMonthStr = betweenMatch[3];
+      const endYear = parseInt(betweenMatch[4]);
+
+      const startMonthIdx = monthNames.indexOf(startMonthStr) !== -1 ? monthNames.indexOf(startMonthStr) : monthShortNames.indexOf(startMonthStr);
+      const endMonthIdx = monthNames.indexOf(endMonthStr) !== -1 ? monthNames.indexOf(endMonthStr) : monthShortNames.indexOf(endMonthStr);
+
+      if (startMonthIdx !== -1 && endMonthIdx !== -1) {
+        result.startDate = `${startYear}-${String(startMonthIdx + 1).padStart(2, '0')}-01`;
+        result.endDate = `${endYear}-${String(endMonthIdx + 1).padStart(2, '0')}-28`;
+      }
+    } else {
+      // Try "from X to Y" pattern
+      const fromPattern = /from\s+(\w+)\s+(\d{4})\s+to\s+(\w+)\s+(\d{4})/i;
+      const fromMatch = lowerQuery.match(fromPattern);
+      
+      if (fromMatch) {
+        const startMonthStr = fromMatch[1];
+        const startYear = parseInt(fromMatch[2]);
+        const endMonthStr = fromMatch[3];
+        const endYear = parseInt(fromMatch[4]);
+
+        const startMonthIdx = monthNames.indexOf(startMonthStr) !== -1 ? monthNames.indexOf(startMonthStr) : monthShortNames.indexOf(startMonthStr);
+        const endMonthIdx = monthNames.indexOf(endMonthStr) !== -1 ? monthNames.indexOf(endMonthStr) : monthShortNames.indexOf(endMonthStr);
+
+        if (startMonthIdx !== -1 && endMonthIdx !== -1) {
+          result.startDate = `${startYear}-${String(startMonthIdx + 1).padStart(2, '0')}-01`;
+          result.endDate = `${endYear}-${String(endMonthIdx + 1).padStart(2, '0')}-28`;
+        }
+      }
+    }
+
+    // If no dates found, ask for them
+    if (!result.startDate || !result.endDate) {
+      result.error = 'Date range not found. Please specify dates like "between May 2024 and May 2026" or "from January 2024 to January 2026".';
+      return result;
+    }
+
+    // Extract change type - built-up/construction queries
+    if (lowerQuery.includes('new construction') || lowerQuery.includes('new buildings') || lowerQuery.includes('construction')) {
+      result.changeType = 'construction';
+      result.phenomenon = 'built_up';
+    } else if (lowerQuery.includes('building expansion') || lowerQuery.includes('built-up expansion') || lowerQuery.includes('urban expansion')) {
+      result.changeType = 'expansion';
+      result.phenomenon = 'built_up';
+    } else if (lowerQuery.includes('built-up') || lowerQuery.includes('built up') || lowerQuery.includes('development')) {
+      result.changeType = 'built_up';
+      result.phenomenon = 'built_up';
+    } else if (lowerQuery.includes('vegetation') || lowerQuery.includes('green') || lowerQuery.includes('ndvi')) {
+      result.phenomenon = 'vegetation';
+    }
+
+    // Extract direction
+    if (lowerQuery.includes('decrease') || lowerQuery.includes('decreased') || lowerQuery.includes('reduced') || lowerQuery.includes('loss')) {
+      result.direction = 'decrease';
+    } else if (lowerQuery.includes('increase') || lowerQuery.includes('increased') || lowerQuery.includes('growth') || lowerQuery.includes('gain')) {
+      result.direction = 'increase';
+    } else if (lowerQuery.includes('change')) {
+      result.direction = 'change';
+    }
+
+    return result;
+  }
+
+  async function findBestScene(
+    aoi: [number, number, number, number],
+    targetDate: string,
+    maxCloudCover: number = 30
+  ): Promise<any | null> {
+    // Convert target date to a search window (± 30 days)
+    const targetDateObj = new Date(targetDate);
+    const startDate = new Date(targetDateObj);
+    startDate.setDate(startDate.getDate() - 30);
+    const endDate = new Date(targetDateObj);
+    endDate.setDate(endDate.getDate() + 30);
+
+    const searchParams = {
+      bbox: aoi,
+      start_date: startDate.toISOString().split('T')[0],
+      end_date: endDate.toISOString().split('T')[0],
+      max_cloud_cover: maxCloudCover,
+      product_type: 'S2MSI2A' as const,
+      limit: 10,
+      force_refresh: false
+    };
+
+    try {
+      // Call the existing Sentinel-2 search endpoint internally via HTTP
+      const response = await fetch(`http://localhost:${process.env.PORT || '3000'}/api/sentinel2/search`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(searchParams)
+      });
+
+      if (!response.ok) {
+        console.error('Sentinel-2 search failed during semantic retrieval');
+        return null;
+      }
+
+      const data = await response.json();
+      
+      if (!data.results || data.results.length === 0) {
+        return null;
+      }
+
+      // Select the scene closest to target date with lowest cloud cover
+      const targetTime = targetDateObj.getTime();
+      const sorted = data.results
+        .filter((p: any) => p.data_mode !== 'demo_fallback')
+        .sort((a: any, b: any) => {
+          const dateA = new Date(a.acquisition_date).getTime();
+          const dateB = new Date(b.acquisition_date).getTime();
+          const timeDiffA = Math.abs(dateA - targetTime);
+          const timeDiffB = Math.abs(dateB - targetTime);
+          
+          if (Math.abs(timeDiffA - timeDiffB) < 86400000) { // Within 1 day, prefer lower cloud
+            return a.cloud_cover - b.cloud_cover;
+          }
+          return timeDiffA - timeDiffB;
+        });
+
+      return sorted[0] || null;
+    } catch (err) {
+      console.error('Error finding best scene:', err);
+      return null;
+    }
+  }
+
+  app.post('/api/semantic-retrieval', async (req: Request, res: Response) => {
+    const startTime = Date.now();
+    try {
+      const { query } = req.body;
+
+      if (!query || typeof query !== 'string') {
+        return res.status(400).json({
+          success: false,
+          error: 'Query is required and must be a string'
+        });
+      }
+
+      // Parse the natural language query
+      const parsedQuery = parseNaturalLanguageQuery(query);
+
+      if (parsedQuery.error) {
+        return res.json({
+          success: false,
+          parsedQuery,
+          error: parsedQuery.error,
+          message: parsedQuery.error
+        });
+      }
+
+      if (!parsedQuery.aoi || !parsedQuery.startDate || !parsedQuery.endDate) {
+        return res.json({
+          success: false,
+          parsedQuery,
+          error: 'Incomplete query parameters',
+          message: 'Could not extract all required parameters (location, dates) from the query.'
+        });
+      }
+
+      // Find Before scene near start date
+      const beforeScene = await findBestScene(parsedQuery.aoi, parsedQuery.startDate, 30);
+
+      if (!beforeScene) {
+        return res.json({
+          success: false,
+          parsedQuery,
+          beforeScene: null,
+          afterScene: null,
+          analysis: null,
+          error: 'No suitable Before scene found',
+          message: `No suitable Sentinel-2 imagery found near ${parsedQuery.startDate} for ${parsedQuery.location}. Try adjusting the date range.`
+        });
+      }
+
+      // Find After scene near end date
+      const afterScene = await findBestScene(parsedQuery.aoi, parsedQuery.endDate, 30);
+
+      if (!afterScene) {
+        return res.json({
+          success: false,
+          parsedQuery,
+          beforeScene,
+          afterScene: null,
+          analysis: null,
+          error: 'No suitable After scene found',
+          message: `No suitable Sentinel-2 imagery found near ${parsedQuery.endDate} for ${parsedQuery.location}. Try adjusting the date range.`
+        });
+      }
+
+      // Call the appropriate analysis endpoint based on change type
+      try {
+        let analysisRequestBody;
+        let analysisEndpoint;
+        
+        if (parsedQuery.changeType === 'construction' || parsedQuery.changeType === 'expansion' || parsedQuery.changeType === 'built_up') {
+          // Use built-up change detection endpoint
+          analysisRequestBody = {
+            before_product_name: beforeScene.name,
+            after_product_name: afterScene.name,
+            bbox: parsedQuery.aoi,
+            ndbi_increase_threshold: 0.1,
+            ndvi_decrease_threshold: -0.1,
+            min_area_pixels: 50
+          };
+          analysisEndpoint = `${RASTER_SERVICE_URL}/analyze-built-up`;
+        } else {
+          // Use existing NDVI change analysis endpoint
+          analysisRequestBody = {
+            before_product_id: beforeScene.id,
+            after_product_id: afterScene.id,
+            aoi_bbox: parsedQuery.aoi,
+            method: 'ndvi_differencing' as const
+          };
+          analysisEndpoint = `http://localhost:${process.env.PORT || '3000'}/api/change/analyze-sentinel2`;
+        }
+
+        const analysisResponse = await fetch(analysisEndpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(analysisRequestBody)
+        });
+
+        if (!analysisResponse.ok) {
+          const errorText = await analysisResponse.text();
+          return res.json({
+            success: false,
+            parsedQuery,
+            beforeScene,
+            afterScene,
+            analysis: null,
+            error: 'Change analysis failed',
+            message: `Real change processing failed: ${errorText}`
+          });
+        }
+
+        const analysis = await analysisResponse.json();
+
+        return res.json({
+          success: true,
+          parsedQuery,
+          beforeScene,
+          afterScene,
+          analysis,
+          execution_time_ms: Date.now() - startTime
+        });
+
+      } catch (analysisErr: any) {
+        return res.json({
+          success: false,
+          parsedQuery,
+          beforeScene,
+          afterScene,
+          analysis: null,
+          error: 'Change analysis service error',
+          message: `Real change processing is currently unavailable: ${analysisErr.message}`
+        });
+      }
+
+    } catch (err: any) {
+      console.error('[Semantic Retrieval] Error:', err);
+      return res.status(500).json({
+        success: false,
+        error: 'Internal server error',
+        message: err.message
+      });
+    }
+  });
+
+  // 11. Built-up Change Analysis API Endpoint
+  app.post('/api/change/analyze-built-up', async (req: Request, res: Response) => {
+    const startTime = Date.now();
+    try {
+      const { before_product_id, after_product_id, aoi_bbox, ndbi_increase_threshold = 0.1, ndvi_decrease_threshold = -0.1, min_area_pixels = 50 } = req.body;
+
+      if (!before_product_id || !after_product_id) {
+        return res.status(400).json({ 
+          success: false,
+          error: 'before_product_id and after_product_id are required' 
+        });
+      }
+
+      if (before_product_id === after_product_id) {
+        return res.status(400).json({ 
+          success: false,
+          error: 'before_product_id and after_product_id must be different' 
+        });
+      }
+
+      // Fetch product metadata from cache or CDSE
+      let beforeProduct: any = null;
+      let afterProduct: any = null;
+
+      for (const entry of sentinel2Cache.values()) {
+        const foundBefore = entry.payload?.results?.find((p: any) => p.id === before_product_id);
+        const foundAfter = entry.payload?.results?.find((p: any) => p.id === after_product_id);
+        if (foundBefore) beforeProduct = foundBefore;
+        if (foundAfter) afterProduct = foundAfter;
+      }
+
+      // If not in cache, try to fetch from CDSE
+      if (!beforeProduct) {
+        try {
+          const metaUrl = `https://catalogue.dataspace.copernicus.eu/odata/v1/Products(${before_product_id})?$expand=Attributes`;
+          const metaRes = await fetch(metaUrl, {
+            headers: { 'Accept': 'application/json', 'User-Agent': 'TerraVektor-Satellite-Discovery/1.0' }
+          });
+          if (metaRes.ok) {
+            const metaData: any = await metaRes.json();
+            const attrs: Record<string, any> = {};
+            if (Array.isArray(metaData.Attributes)) {
+              metaData.Attributes.forEach((a: any) => { if (a.Name) attrs[a.Name] = a.Value; });
+            }
+            beforeProduct = {
+              id: metaData.Id,
+              name: metaData.Name,
+              acquisition_date: metaData.ContentDate?.Start || metaData.OriginDate,
+              cloud_cover: attrs.cloudCover || 0,
+              tile_id: attrs.tileId,
+              data_mode: 'live_copernicus'
+            };
+          }
+        } catch (e: any) {
+          console.warn(`[Built-up Analysis] Failed to fetch before product metadata:`, e.message);
+        }
+      }
+
+      if (!afterProduct) {
+        try {
+          const metaUrl = `https://catalogue.dataspace.copernicus.eu/odata/v1/Products(${after_product_id})?$expand=Attributes`;
+          const metaRes = await fetch(metaUrl, {
+            headers: { 'Accept': 'application/json', 'User-Agent': 'TerraVektor-Satellite-Discovery/1.0' }
+          });
+          if (metaRes.ok) {
+            const metaData: any = await metaRes.json();
+            const attrs: Record<string, any> = {};
+            if (Array.isArray(metaData.Attributes)) {
+              metaData.Attributes.forEach((a: any) => { if (a.Name) attrs[a.Name] = a.Value; });
+            }
+            afterProduct = {
+              id: metaData.Id,
+              name: metaData.Name,
+              acquisition_date: metaData.ContentDate?.Start || metaData.OriginDate,
+              cloud_cover: attrs.cloudCover || 0,
+              tile_id: attrs.tileId,
+              data_mode: 'live_copernicus'
+            };
+          }
+        } catch (e: any) {
+          console.warn(`[Built-up Analysis] Failed to fetch after product metadata:`, e.message);
+        }
+      }
+
+      // If products not found, return processing unavailable error
+      if (!beforeProduct || !afterProduct) {
+        return res.status(503).json({
+          success: false,
+          data_mode: 'processing_unavailable',
+          reason: 'One or both Sentinel-2 products not found in cache or CDSE',
+          failed_source: 'product_discovery',
+          required_next_step: 'Ensure products are discovered via Sentinel-2 search first'
+        });
+      }
+
+      // Call Python raster service for real B04/B08/B11 processing
+      console.log(`[Built-up Analysis] Calling Python raster service for real NDVI/NDBI calculation`);
+      
+      const rasterRequestBody = {
+        before_product_name: beforeProduct.name,
+        after_product_name: afterProduct.name,
+        bbox: aoi_bbox || [73.70, 18.40, 74.05, 18.70],
+        ndbi_increase_threshold,
+        ndvi_decrease_threshold,
+        min_area_pixels
+      };
+
+      const rasterResponse = await fetch(`${RASTER_SERVICE_URL}/analyze-built-up`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(rasterRequestBody)
+      });
+
+      if (!rasterResponse.ok) {
+        const errorDetail = await rasterResponse.text();
+        console.error(`[Built-up Analysis] Raster service error: ${rasterResponse.status} - ${errorDetail}`);
+        return res.status(503).json({
+          success: false,
+          data_mode: 'processing_unavailable',
+          reason: `Python raster service unavailable: ${errorDetail}`,
+          failed_source: 'raster_service',
+          required_next_step: 'Start Python raster service and ensure dependencies are installed'
+        });
+      }
+
+      const rasterResult = await rasterResponse.json();
+
+      if (!rasterResult.success) {
+        return res.status(503).json(rasterResult);
+      }
+
+      // Transform raster service result to our API format
+      const analysisId = `built_up_analysis_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      
+      const result = {
+        analysis_id: analysisId,
+        classification: 'built_up_change',
+        before_product_id: before_product_id,
+        after_product_id: after_product_id,
+        data_mode: rasterResult.data_mode,
+        before: {
+          product_id: before_product_id,
+          date: beforeProduct.acquisition_date,
+          tile: beforeProduct.tile_id
+        },
+        after: {
+          product_id: after_product_id,
+          date: afterProduct.acquisition_date,
+          tile: afterProduct.tile_id
+        },
+        metrics: rasterResult.metrics,
+        candidates: rasterResult.candidates,
+        candidate_summary: rasterResult.candidate_summary,
+        thresholds: rasterResult.thresholds,
+        change_mask_url: `/api/change/built-up-mask/${analysisId}`,
+        before_image_url: `/api/sentinel2/preview/${before_product_id}`,
+        after_image_url: `/api/sentinel2/preview/${after_product_id}`,
+        metadata: {
+          before_date: beforeProduct.acquisition_date,
+          after_date: afterProduct.acquisition_date,
+          before_cloud_cover: beforeProduct.cloud_cover,
+          after_cloud_cover: afterProduct.cloud_cover,
+          aoi_bbox: aoi_bbox || null,
+          processing_time_ms: rasterResult.processing_time_ms
+        },
+        source: rasterResult.source,
+        limitations: rasterResult.limitations,
+        message: `Real NDVI/NDBI calculation from Sentinel-2 B04/B08/B11 spectral bands via public COG mirror`
+      };
+
+      console.log(`[Built-up Analysis] Completed real analysis ${analysisId} in ${Date.now() - startTime}ms`);
+      res.json(result);
+
+    } catch (err: any) {
+      console.error('[Built-up Analysis] Error:', err);
+      return res.status(500).json({
+        success: false,
+        data_mode: 'processing_unavailable',
+        reason: err.message,
+        failed_source: 'express_server',
+        required_next_step: 'Check error logs and service configuration'
+      });
+    }
   });
 
   // Frontend Serving (Dev via Vite middleware, Prod via express.static)

@@ -177,3 +177,95 @@ export interface ChangeAnalysisResult {
   };
   message?: string;
 }
+
+// Semantic Retrieval Types
+export interface ParsedQuery {
+  location: string;
+  aoi: [number, number, number, number] | null;
+  startDate: string | null;
+  endDate: string | null;
+  phenomenon: string;
+  direction: 'increase' | 'decrease' | 'change' | null;
+  changeType?: 'vegetation' | 'built_up' | 'construction' | 'expansion' | null;
+  error?: string;
+}
+
+export interface SemanticRetrievalRequest {
+  query: string;
+}
+
+export interface SemanticRetrievalResponse {
+  success: boolean;
+  parsedQuery: ParsedQuery;
+  beforeScene: any | null;
+  afterScene: any | null;
+  analysis: ChangeAnalysisResult | BuiltUpAnalysisResult | null;
+  error?: string;
+  message?: string;
+}
+
+// Built-up Change Analysis Types
+export interface BuiltUpAnalysisResult {
+  analysis_id: string;
+  classification: string;
+  before_product_id: string;
+  after_product_id: string;
+  data_mode: 'real_sentinel2' | 'processing_unavailable';
+  before: {
+    product_id: string;
+    date: string;
+    tile: string;
+  };
+  after: {
+    product_id: string;
+    date: string;
+    tile: string;
+  };
+  metrics: {
+    mean_ndvi_before: number;
+    mean_ndvi_after: number;
+    mean_ndvi_change: number;
+    mean_ndbi_before: number;
+    mean_ndbi_after: number;
+    mean_ndbi_change: number;
+    total_valid_pixels: number;
+    changed_pixels: number;
+    change_percentage: number;
+  };
+  candidates: Array<{
+    id: string;
+    type: string;
+    pixel_count: number;
+    area_m2: number;
+    centroid: number[];
+    bounding_box: number[];
+    mean_delta_ndvi: number;
+    mean_delta_ndbi: number;
+    min_delta_ndvi: number;
+    max_delta_ndbi: number;
+  }>;
+  candidate_summary: {
+    total_candidates: number;
+    new_construction_count: number;
+    building_expansion_count: number;
+  };
+  thresholds: {
+    ndbi_increase_threshold: number;
+    ndvi_decrease_threshold: number;
+    min_area_pixels: number;
+  };
+  change_mask_url: string;
+  before_image_url: string;
+  after_image_url: string;
+  metadata: {
+    before_date: string;
+    after_date: string;
+    before_cloud_cover: number;
+    after_cloud_cover: number;
+    aoi_bbox: [number, number, number, number] | null;
+    processing_time_ms: number;
+  };
+  source?: string;
+  limitations?: string[];
+  message?: string;
+}

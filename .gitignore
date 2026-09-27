@@ -85,3 +85,5 @@ vector_store/*.faiss
 # Logs
 *.log
 logs/
+
+desktop.ini

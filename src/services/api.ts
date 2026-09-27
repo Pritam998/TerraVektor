@@ -7,7 +7,10 @@ import {
   SemanticSearchRequest,
   SemanticSearchResponse,
   HealthResponse,
-  ProvenanceData
+  ProvenanceData,
+  SemanticRetrievalRequest,
+  SemanticRetrievalResponse,
+  BuiltUpAnalysisResult
 } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '';
@@ -135,6 +138,32 @@ export const analyzeSentinel2Change = async (
 // Change Mask URL Helper
 export const getChangeMaskUrl = (analysisId: string): string => {
   return `${API_BASE_URL}/api/change/mask/${analysisId}`;
+};
+
+// Semantic Retrieval (Natural Language Query Processing)
+export const semanticRetrieval = async (request: SemanticRetrievalRequest): Promise<SemanticRetrievalResponse> => {
+  const response = await api.post('/api/semantic-retrieval', request);
+  return response.data;
+};
+
+// Built-up Change Analysis
+export const analyzeBuiltUpChanges = async (
+  beforeProductId: string,
+  afterProductId: string,
+  aoiBbox?: [number, number, number, number],
+  ndbiIncreaseThreshold: number = 0.1,
+  ndviDecreaseThreshold: number = -0.1,
+  minAreaPixels: number = 50
+): Promise<BuiltUpAnalysisResult> => {
+  const response = await api.post('/api/change/analyze-built-up', {
+    before_product_id: beforeProductId,
+    after_product_id: afterProductId,
+    aoi_bbox: aoiBbox,
+    ndbi_increase_threshold: ndbiIncreaseThreshold,
+    ndvi_decrease_threshold: ndviDecreaseThreshold,
+    min_area_pixels: minAreaPixels
+  });
+  return response.data;
 };
 
 export default api;
