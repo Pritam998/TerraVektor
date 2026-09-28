@@ -1767,6 +1767,8 @@ async function startServer() {
     direction: 'increase' | 'decrease' | 'change' | null;
     changeType?: 'vegetation' | 'built_up' | 'construction' | 'expansion' | null;
     error?: string;
+    status?: 'valid' | 'incomplete' | 'ambiguous' | 'unsupported';
+    missingFields?: string[];
   }
 
   // AOI Presets for Indian cities
@@ -1779,7 +1781,7 @@ async function startServer() {
     'jaipur': [75.65, 26.80, 75.95, 27.05]
   };
 
-  // Location name normalization
+  // Expanded location name normalization with variations
   const LOCATION_ALIASES: Record<string, string> = {
     'pune': 'pune',
     'poona': 'pune',
@@ -1794,6 +1796,60 @@ async function startServer() {
     'jaipur': 'jaipur'
   };
 
+  // Built-up/construction keywords
+  const BUILT_UP_KEYWORDS = [
+    'new construction', 'construction', 'urban expansion', 'urban growth',
+    'built-up growth', 'development', 'new buildings', 'construction activity',
+    'land development', 'building', 'buildings', 'developed', 'developing',
+    'built-up', 'built up', 'infrastructure', 'housing', 'commercial',
+    'industrial', 'paved', 'concrete'
+  ];
+
+  // Vegetation keywords
+  const VEGETATION_KEYWORDS = [
+    'vegetation', 'green', 'greenery', 'forest', 'forests', 'trees',
+    'tree cover', 'foliage', 'canopy', 'plant', 'plants', 'crops',
+    'agriculture', 'farmland', 'ndvi', 'green cover', 'vegetation cover'
+  ];
+
+  // Direction keywords
+  const DECREASE_KEYWORDS = [
+    'decrease', 'decreased', 'decreasing', 'reduced', 'reduction',
+    'loss', 'lost', 'decline', 'declining', 'disappeared', 'disappearing',
+    'removed', 'removal', 'cleared', 'clearing', 'destroyed',
+    'destruction', 'less', 'lower', 'dropped', 'drop', 'shrink',
+    'shrinking', 'shrank'
+  ];
+
+  const INCREASE_KEYWORDS = [
+    'increase', 'increased', 'increasing', 'growth', 'growing',
+    'grew', 'gain', 'gained', 'gaining', 'more', 'higher', 'rise',
+    'rising', 'rose', 'recovery', 'recovering', 'recovered',
+    'regrowth', 'regrowing', 'regrew', 'expansion', 'expanded',
+    'expand', 'spread', 'spreading', 'spreaded'
+  ];
+
+  // Location prefixes to strip
+  const LOCATION_PREFIXES = [
+    'around', 'near', 'in', 'at', 'around the', 'near the', 'in the',
+    'at the', 'region of', 'area of', 'city of'
+  ];
+
+  // Ambiguous temporal terms
+  const AMBIGUOUS_TEMPORAL = [
+    'recently', 'lately', 'currently', 'now', 'today', 'yesterday',
+    'soon', 'later', 'earlier', 'before', 'after', 'past', 'future'
+  ];
+
+  // Unsupported domains
+  const UNSUPPORTED_DOMAINS = [
+    'restaurant', 'restaurants', 'food', 'hotel', 'hotels',
+    'shopping', 'mall', 'malls', 'market', 'markets', 'tourist',
+    'tourism', 'attraction', 'attractions', 'entertainment', 'movie',
+    'movies', 'cinema', 'theater', 'transport', 'traffic', 'weather',
+    'climate', 'politics', 'news', 'sports', 'game', 'games'
+  ];
+
   function parseNaturalLanguageQuery(query: string): ParsedQuery {
     const lowerQuery = query.toLowerCase().trim();
     
@@ -1804,95 +1860,245 @@ async function startServer() {
       endDate: null,
       phenomenon: 'vegetation',
       direction: null,
-      changeType: null
+      changeType: null,
+      status: 'valid',
+      missingFields: []
     };
 
-    // Extract location
+    // Check for unsupported domains first
+    for (const term of UNSUPPORTED_DOMAINS) {
+      if (new RegExp(`\\b${term}\\b`, 'i').test(lowerQuery)) {
+        result.error = `Unsupported investigation domain: "${term}". This workspace supports built-up change, vegetation change, and temporal satellite comparison.`;
+        result.status = 'unsupported';
+        return result;
+      }
+    }
+
+    // Check for ambiguous temporal terms
+    for (const ambiguous of AMBIGUOUS_TEMPORAL) {
+      if (new RegExp(`\\b${ambiguous}\\b`, 'i').test(lowerQuery)) {
+        result.error = `Ambiguous temporal term "${ambiguous}". Please specify exact dates (e.g., "between May 2024 and May 2026").`;
+        result.status = 'incomplete';
+        result.missingFields = ['temporal_range'];
+        return result;
+      }
+    }
+
+    // Extract location with flexible matching
     let foundLocation = '';
+    let searchQuery = lowerQuery;
+
+    // Remove location prefixes
+    for (const prefix of LOCATION_PREFIXES) {
+      const prefixPattern = new RegExp(`\\b${prefix}\\s+`, 'i');
+      searchQuery = searchQuery.replace(prefixPattern, '');
+    }
+
+    // Try exact word match for location aliases
     for (const [alias, canonical] of Object.entries(LOCATION_ALIASES)) {
-      if (lowerQuery.includes(alias)) {
+      const pattern = new RegExp(`\\b${alias}\\b`, 'i');
+      if (pattern.test(lowerQuery)) {
         foundLocation = canonical;
         break;
       }
     }
 
+    // Try location with variations (e.g., "Pune region", "Pune area")
+    if (!foundLocation) {
+      for (const [alias, canonical] of Object.entries(LOCATION_ALIASES)) {
+        const patterns = [
+          new RegExp(`\\b${alias}\\s+region\\b`, 'i'),
+          new RegExp(`\\b${alias}\\s+area\\b`, 'i'),
+          new RegExp(`\\b${alias}\\s+city\\b`, 'i'),
+          new RegExp(`\\b${alias}\\s+zone\\b`, 'i')
+        ];
+
+        for (const pattern of patterns) {
+          if (pattern.test(lowerQuery)) {
+            foundLocation = canonical;
+            break;
+          }
+        }
+        if (foundLocation) break;
+      }
+    }
+
     if (!foundLocation) {
       result.error = 'Location not recognized. Please specify one of: Pune, Mumbai, Bengaluru, Delhi, Chennai, or Jaipur.';
+      result.status = 'incomplete';
+      result.missingFields = ['location'];
       return result;
     }
 
     result.location = foundLocation.charAt(0).toUpperCase() + foundLocation.slice(1);
     result.aoi = AOI_PRESETS[foundLocation];
 
-    // Extract dates - patterns like "May 2024", "January 2026", "between May 2024 and May 2026"
+    // Extract dates with multiple pattern support
     const monthNames = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
     const monthShortNames = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
 
-    // Try "between X and Y" pattern
+    function getMonthIndex(monthStr: string): number {
+      const lower = monthStr.toLowerCase();
+      const idx = monthNames.indexOf(lower);
+      if (idx !== -1) return idx;
+      return monthShortNames.indexOf(lower);
+    }
+
+    function parseMonthYearPair(startMonthStr: string, startYearStr: string, endMonthStr: string, endYearStr: string): { startDate: string; endDate: string } | null {
+      const startMonthIdx = getMonthIndex(startMonthStr);
+      const endMonthIdx = getMonthIndex(endMonthStr);
+
+      if (startMonthIdx === -1 || endMonthIdx === -1) {
+        return null;
+      }
+
+      const startYear = parseInt(startYearStr);
+      const endYear = parseInt(endYearStr);
+
+      if (startYear > endYear) {
+        return null;
+      }
+
+      const startDate = `${startYear}-${String(startMonthIdx + 1).padStart(2, '0')}-01`;
+      const endDate = `${endYear}-${String(endMonthIdx + 1).padStart(2, '0')}-28`;
+
+      return { startDate, endDate };
+    }
+
+    // Pattern 1: "between Month Year and Month Year"
     const betweenPattern = /between\s+(\w+)\s+(\d{4})\s+and\s+(\w+)\s+(\d{4})/i;
     const betweenMatch = lowerQuery.match(betweenPattern);
-    
+
     if (betweenMatch) {
-      const startMonthStr = betweenMatch[1];
-      const startYear = parseInt(betweenMatch[2]);
-      const endMonthStr = betweenMatch[3];
-      const endYear = parseInt(betweenMatch[4]);
-
-      const startMonthIdx = monthNames.indexOf(startMonthStr) !== -1 ? monthNames.indexOf(startMonthStr) : monthShortNames.indexOf(startMonthStr);
-      const endMonthIdx = monthNames.indexOf(endMonthStr) !== -1 ? monthNames.indexOf(endMonthStr) : monthShortNames.indexOf(endMonthStr);
-
-      if (startMonthIdx !== -1 && endMonthIdx !== -1) {
-        result.startDate = `${startYear}-${String(startMonthIdx + 1).padStart(2, '0')}-01`;
-        result.endDate = `${endYear}-${String(endMonthIdx + 1).padStart(2, '0')}-28`;
+      const parsed = parseMonthYearPair(betweenMatch[1], betweenMatch[2], betweenMatch[3], betweenMatch[4]);
+      if (parsed) {
+        result.startDate = parsed.startDate;
+        result.endDate = parsed.endDate;
       }
-    } else {
-      // Try "from X to Y" pattern
+    }
+
+    // Pattern 2: "from Month Year to Month Year"
+    if (!result.startDate) {
       const fromPattern = /from\s+(\w+)\s+(\d{4})\s+to\s+(\w+)\s+(\d{4})/i;
       const fromMatch = lowerQuery.match(fromPattern);
-      
+
       if (fromMatch) {
-        const startMonthStr = fromMatch[1];
-        const startYear = parseInt(fromMatch[2]);
-        const endMonthStr = fromMatch[3];
-        const endYear = parseInt(fromMatch[4]);
+        const parsed = parseMonthYearPair(fromMatch[1], fromMatch[2], fromMatch[3], fromMatch[4]);
+        if (parsed) {
+          result.startDate = parsed.startDate;
+          result.endDate = parsed.endDate;
+        }
+      }
+    }
 
-        const startMonthIdx = monthNames.indexOf(startMonthStr) !== -1 ? monthNames.indexOf(startMonthStr) : monthShortNames.indexOf(startMonthStr);
-        const endMonthIdx = monthNames.indexOf(endMonthStr) !== -1 ? monthNames.indexOf(endMonthStr) : monthShortNames.indexOf(endMonthStr);
+    // Pattern 3: "Month Year to Month Year" or "Month Year - Month Year"
+    if (!result.startDate) {
+      const simplePattern = /(\w+)\s+(\d{4})\s+(?:to|until|through|-|–)\s+(\w+)\s+(\d{4})/i;
+      const simpleMatch = lowerQuery.match(simplePattern);
 
-        if (startMonthIdx !== -1 && endMonthIdx !== -1) {
-          result.startDate = `${startYear}-${String(startMonthIdx + 1).padStart(2, '0')}-01`;
-          result.endDate = `${endYear}-${String(endMonthIdx + 1).padStart(2, '0')}-28`;
+      if (simpleMatch) {
+        const parsed = parseMonthYearPair(simpleMatch[1], simpleMatch[2], simpleMatch[3], simpleMatch[4]);
+        if (parsed) {
+          result.startDate = parsed.startDate;
+          result.endDate = parsed.endDate;
+        }
+      }
+    }
+
+    // Pattern 4: "Year to Year" - too ambiguous, reject
+    if (!result.startDate) {
+      const yearPattern = /(\d{4})\s+(?:to|until|through|-|–|vs|versus)\s+(\d{4})/i;
+      const yearMatch = lowerQuery.match(yearPattern);
+
+      if (yearMatch) {
+        const startYear = parseInt(yearMatch[1]);
+        const endYear = parseInt(yearMatch[2]);
+
+        if (startYear < endYear) {
+          result.error = 'Year-only ranges require specific months for satellite analysis. Please specify months (e.g., "May 2024 to May 2026").';
+          result.status = 'incomplete';
+          result.missingFields = ['temporal_range'];
+          return result;
         }
       }
     }
 
     // If no dates found, ask for them
     if (!result.startDate || !result.endDate) {
-      result.error = 'Date range not found. Please specify dates like "between May 2024 and May 2026" or "from January 2024 to January 2026".';
+      result.error = 'Date range not found. Please specify dates like "between May 2024 and May 2026", "from January 2024 to January 2026", or "March 2024 through March 2026".';
+      result.status = 'incomplete';
+      result.missingFields = ['temporal_range'];
       return result;
     }
 
-    // Extract change type - built-up/construction queries
-    if (lowerQuery.includes('new construction') || lowerQuery.includes('new buildings') || lowerQuery.includes('construction')) {
-      result.changeType = 'construction';
-      result.phenomenon = 'built_up';
-    } else if (lowerQuery.includes('building expansion') || lowerQuery.includes('built-up expansion') || lowerQuery.includes('urban expansion')) {
-      result.changeType = 'expansion';
-      result.phenomenon = 'built_up';
-    } else if (lowerQuery.includes('built-up') || lowerQuery.includes('built up') || lowerQuery.includes('development')) {
-      result.changeType = 'built_up';
-      result.phenomenon = 'built_up';
-    } else if (lowerQuery.includes('vegetation') || lowerQuery.includes('green') || lowerQuery.includes('ndvi')) {
-      result.phenomenon = 'vegetation';
+    // Extract intent with expanded keyword matching
+    let builtUpMatches = 0;
+    for (const keyword of BUILT_UP_KEYWORDS) {
+      if (new RegExp(`\\b${keyword}\\b`, 'i').test(lowerQuery)) {
+        builtUpMatches++;
+      }
     }
 
-    // Extract direction
-    if (lowerQuery.includes('decrease') || lowerQuery.includes('decreased') || lowerQuery.includes('reduced') || lowerQuery.includes('loss')) {
+    let vegetationMatches = 0;
+    for (const keyword of VEGETATION_KEYWORDS) {
+      if (new RegExp(`\\b${keyword}\\b`, 'i').test(lowerQuery)) {
+        vegetationMatches++;
+      }
+    }
+
+    // Determine direction
+    let decreaseMatches = 0;
+    let increaseMatches = 0;
+
+    for (const keyword of DECREASE_KEYWORDS) {
+      if (new RegExp(`\\b${keyword}\\b`, 'i').test(lowerQuery)) {
+        decreaseMatches++;
+      }
+    }
+
+    for (const keyword of INCREASE_KEYWORDS) {
+      if (new RegExp(`\\b${keyword}\\b`, 'i').test(lowerQuery)) {
+        increaseMatches++;
+      }
+    }
+
+    if (decreaseMatches > increaseMatches) {
       result.direction = 'decrease';
-    } else if (lowerQuery.includes('increase') || lowerQuery.includes('increased') || lowerQuery.includes('growth') || lowerQuery.includes('gain')) {
+    } else if (increaseMatches > decreaseMatches) {
       result.direction = 'increase';
-    } else if (lowerQuery.includes('change')) {
+    } else if (decreaseMatches > 0 || increaseMatches > 0) {
       result.direction = 'change';
+    }
+
+    // Determine intent based on keyword counts
+    if (builtUpMatches > vegetationMatches && builtUpMatches > 0) {
+      result.changeType = 'built_up';
+      result.phenomenon = 'built_up';
+    } else if (vegetationMatches > builtUpMatches && vegetationMatches > 0) {
+      result.phenomenon = 'vegetation';
+    } else if (builtUpMatches === 0 && vegetationMatches === 0) {
+      // Check for general change keywords
+      const generalChangeKeywords = ['change', 'changed', 'changes', 'different', 'difference', 'compare', 'comparison'];
+      let generalChangeMatches = 0;
+      for (const keyword of generalChangeKeywords) {
+        if (new RegExp(`\\b${keyword}\\b`, 'i').test(lowerQuery)) {
+          generalChangeMatches++;
+        }
+      }
+
+      if (generalChangeMatches > 0) {
+        result.phenomenon = 'general';
+        result.status = 'ambiguous';
+        result.missingFields = ['investigation_type'];
+        result.error = 'Ambiguous investigation type. Please specify what to investigate: built-up change, vegetation change, or general spectral change.';
+      } else {
+        result.phenomenon = 'general';
+        result.status = 'ambiguous';
+        result.missingFields = ['investigation_type'];
+        result.error = 'Investigation type not specified. Please specify what to investigate: built-up change, vegetation change, or general spectral change.';
+      }
+    } else {
+      result.phenomenon = 'vegetation';
     }
 
     return result;
@@ -2011,7 +2217,9 @@ async function startServer() {
           success: false,
           parsedQuery,
           error: parsedQuery.error,
-          message: parsedQuery.error
+          message: parsedQuery.error,
+          status: parsedQuery.status,
+          missingFields: parsedQuery.missingFields
         });
       }
 
@@ -2019,8 +2227,10 @@ async function startServer() {
         return res.json({
           success: false,
           parsedQuery,
-          error: 'Incomplete query parameters',
-          message: 'Could not extract all required parameters (location, dates) from the query.'
+          error: parsedQuery.error || 'Incomplete query parameters',
+          message: parsedQuery.error || 'Could not extract all required parameters (location, dates) from the query.',
+          status: parsedQuery.status,
+          missingFields: parsedQuery.missingFields
         });
       }
 

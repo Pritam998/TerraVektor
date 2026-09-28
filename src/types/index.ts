@@ -280,3 +280,9 @@ export interface BuiltUpAnalysisResult {
   limitations?: string[];
   message?: string;
 }
+
+// Extended ParsedQuery for new parser
+export interface ExtendedParsedQuery extends ParsedQuery {
+  status?: 'valid' | 'incomplete' | 'ambiguous' | 'unsupported';
+  missingFields?: string[];
+}

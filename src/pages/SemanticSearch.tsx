@@ -23,6 +23,8 @@ import { SemanticRetrievalResponse, ParsedQuery, BuiltUpAnalysisResult, ChangeAn
 import { SatelliteInvestigationMap } from '../features/investigation/components/SatelliteInvestigationMap';
 import { InvestigationWorkspacePanel } from '../features/investigation/components/InvestigationWorkspacePanel';
 import { InvestigationRibbon } from '../features/investigation/components/InvestigationRibbon';
+import { QueryClarification } from '../features/semantic-search/components/QueryClarification';
+import { parseQuery, type QueryPlan } from '../features/semantic-search/parser';
 import { format } from 'date-fns';
 
 export const SemanticSearch: React.FC = () => {
@@ -32,12 +34,15 @@ export const SemanticSearch: React.FC = () => {
   const [result, setResult] = useState<SemanticRetrievalResponse | null>(null);
   const [selectedCandidateId, setSelectedCandidateId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [queryPlan, setQueryPlan] = useState<QueryPlan | null>(null);
 
   const sampleQueries = [
     { label: 'Pune Urban Growth', text: 'Find new construction and built-up expansion around Pune between May 2024 and October 2024' },
     { label: 'Mumbai Coastal', text: 'Show vegetation and built-up change around Mumbai from January 2024 to May 2024' },
     { label: 'Bengaluru Tech Corridor', text: 'Find areas around Bengaluru with new construction between March 2024 and June 2024' },
-    { label: 'Hyderabad Expansion', text: 'Show urban expansion around Hyderabad between February 2024 and May 2024' }
+    { label: 'Hyderabad Expansion', text: 'Show urban expansion around Hyderabad between February 2024 and May 2024' },
+    { label: 'Vegetation Loss', text: 'Show vegetation loss around Mumbai from January 2024 to January 2026' },
+    { label: 'Vegetation Growth', text: 'Find areas around Bengaluru with vegetation increase between March 2024 and March 2026' }
   ];
 
   // Auto-run initial query on mount so cockpit immediately displays real data
@@ -51,6 +56,10 @@ export const SemanticSearch: React.FC = () => {
     setHasSearched(true);
     setErrorMessage(null);
     setSelectedCandidateId(null);
+    
+    // Parse query locally for immediate feedback
+    const localPlan = parseQuery(searchQuery);
+    setQueryPlan(localPlan);
     
     try {
       const response = await semanticRetrieval({
@@ -70,6 +79,28 @@ export const SemanticSearch: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleSelectExample = (exampleQuery: string) => {
+    setQuery(exampleQuery);
+    handleSearch(exampleQuery);
+  };
+
+  const handleSelectIntent = (intent: string) => {
+    // Reconstruct query with selected intent
+    let newQuery = query;
+    const location = queryPlan?.location || 'Pune';
+    
+    if (intent === 'built_up_change') {
+      newQuery = `Find new construction around ${location} between May 2024 and October 2024`;
+    } else if (intent === 'vegetation_change') {
+      newQuery = `Show vegetation change around ${location} from May 2024 to October 2024`;
+    } else {
+      newQuery = `Compare ${location} satellite imagery from May 2024 to October 2024`;
+    }
+    
+    setQuery(newQuery);
+    handleSearch(newQuery);
   };
 
   const candidateList = result?.analysis && 'candidates' in result.analysis 
@@ -156,15 +187,27 @@ export const SemanticSearch: React.FC = () => {
         </form>
       </div>
 
-      {/* Error Message */}
-      {errorMessage && (
-        <div className="bg-rose-50 border border-rose-200 rounded p-3 flex items-start space-x-2 text-xs text-rose-800">
-          <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-          <div>
-            <span className="font-bold">Investigation Degraded: </span>
-            <span>{errorMessage}</span>
-          </div>
-        </div>
+      {/* Query Clarification / Error Message */}
+      {(errorMessage || (queryPlan && queryPlan.status !== 'valid')) && (
+        <QueryClarification
+          queryPlan={queryPlan || {
+            status: 'unsupported',
+            intent: null,
+            location: null,
+            aoi: null,
+            startDate: null,
+            endDate: null,
+            direction: null,
+            confidence: 0,
+            missingFields: [],
+            ambiguousFields: [],
+            unsupportedTerms: [],
+            originalQuery: query,
+            normalizedQuery: query.toLowerCase()
+          }}
+          onSelectExample={handleSelectExample}
+          onSelectIntent={handleSelectIntent}
+        />
       )}
 
       {/* 2. Investigation Ribbon (Section 2) */}
