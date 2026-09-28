@@ -53,11 +53,11 @@ export const SemanticSearch: React.FC = () => {
       setResult(response);
       
       if (!response.success) {
-        setErrorMessage(response.message || response.error || 'Search failed');
+        setErrorMessage(response.detail || response.message || response.error || 'Search failed');
       }
     } catch (err: any) {
       console.error('Semantic retrieval failed:', err);
-      setErrorMessage(err.response?.data?.message || err.message || 'Failed to process query');
+      setErrorMessage(err.response?.data?.detail || err.response?.data?.message || err.message || 'Failed to process query');
     } finally {
       setIsLoading(false);
     }

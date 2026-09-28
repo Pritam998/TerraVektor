@@ -210,6 +210,9 @@ export interface SemanticRetrievalResponse {
   analysis: ChangeAnalysisResult | BuiltUpAnalysisResult | null;
   error?: string;
   message?: string;
+  detail?: string;
+  data_mode?: string;
+  execution_time_ms?: number;
 }
 
 // Built-up Change Analysis Types
