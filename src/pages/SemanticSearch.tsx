@@ -21,6 +21,7 @@ import {
 import { semanticRetrieval } from '../services/api';
 import { SemanticRetrievalResponse, ParsedQuery, BuiltUpAnalysisResult, ChangeAnalysisResult } from '../types';
 import { SatelliteInvestigationMap } from '../components/SatelliteInvestigationMap';
+import { InvestigationWorkspacePanel } from '../components/InvestigationWorkspacePanel';
 import { format } from 'date-fns';
 
 export const SemanticSearch: React.FC = () => {
@@ -585,6 +586,42 @@ export const SemanticSearch: React.FC = () => {
           )}
         </div>
       )}
+
+      {(() => {
+        if (!selectedCandidateId || !result?.analysis || !('candidates' in result.analysis)) return null;
+        const candidate = (result.analysis as any).candidates?.find((c: any) => c.id === selectedCandidateId);
+        if (!candidate || !result.beforeScene || !result.afterScene) return null;
+        
+        return (
+          <InvestigationWorkspacePanel
+            candidate={candidate}
+            beforeScene={{
+              id: result.beforeScene.id,
+              name: result.beforeScene.name,
+              acquisition_date: result.beforeScene.acquisition_date,
+              tile_id: result.beforeScene.tile_id,
+              cloud_cover: result.beforeScene.cloud_cover,
+              bbox: result.beforeScene.bbox,
+              data_mode: result.beforeScene.data_mode,
+              preview_url: `/api/sentinel2/preview/${result.beforeScene.id}`
+            }}
+            afterScene={{
+              id: result.afterScene.id,
+              name: result.afterScene.name,
+              acquisition_date: result.afterScene.acquisition_date,
+              tile_id: result.afterScene.tile_id,
+              cloud_cover: result.afterScene.cloud_cover,
+              bbox: result.afterScene.bbox,
+              data_mode: result.afterScene.data_mode,
+              preview_url: `/api/sentinel2/preview/${result.afterScene.id}`
+            }}
+            onClose={() => setSelectedCandidateId(null)}
+            dataMode={result.analysis.data_mode}
+            limitations={(result.analysis as any).limitations}
+            source={result.analysis.source}
+          />
+        );
+      })()}
     </div>
   );
 };
