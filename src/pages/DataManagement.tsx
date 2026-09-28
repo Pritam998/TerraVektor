@@ -90,93 +90,93 @@ export const DataManagement: React.FC = () => {
     <div className="p-6 space-y-6 max-w-7xl mx-auto">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center space-x-2 text-xs font-semibold text-satellite-400 uppercase tracking-wider mb-1">
+          <div className="flex items-center space-x-2 text-xs font-semibold text-teal-800 uppercase tracking-wider mb-1 font-mono">
             <Database className="w-3.5 h-3.5" />
             <span>Catalog Ingestion & Provenance Records</span>
           </div>
-          <h1 className="text-2xl font-bold text-white">Scene Registry & Provenance</h1>
-          <p className="text-sm text-slate-400">
+          <h1 className="text-xl font-bold text-slate-900 tracking-tight">Scene Registry & Provenance</h1>
+          <p className="text-xs text-slate-600 mt-0.5">
             Audit catalog scenes, review data lineage pipelines, and manually ingest new satellite datasets.
           </p>
         </div>
 
         <button
           onClick={() => setShowIngestModal(true)}
-          className="px-4 py-2.5 bg-satellite-500 hover:bg-satellite-600 text-white text-xs font-semibold rounded-lg shadow-lg shadow-satellite-500/25 transition-all flex items-center space-x-2 self-start"
+          className="px-4 py-2 bg-teal-800 hover:bg-teal-900 text-white text-xs font-semibold rounded shadow-xs transition-colors flex items-center space-x-1.5 self-start"
         >
-          <Plus className="w-4 h-4" />
+          <Plus className="w-3.5 h-3.5" />
           <span>Ingest New Scene</span>
         </button>
       </div>
 
       {/* Search Input */}
-      <div className="flex items-center bg-ui-dark border border-ui-border rounded-xl px-4 py-2.5 max-w-md">
-        <Search className="w-4 h-4 text-slate-400 mr-2.5" />
+      <div className="flex items-center bg-white border border-slate-300 rounded-lg px-3 py-2 max-w-md shadow-xs">
+        <Search className="w-3.5 h-3.5 text-slate-400 mr-2" />
         <input 
           type="text"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           placeholder="Filter by scene title, sensor platform, or agency..."
-          className="bg-transparent border-none text-xs text-white placeholder-slate-500 focus:outline-none w-full"
+          className="bg-transparent border-none text-xs text-slate-800 placeholder-slate-400 focus:outline-none w-full"
         />
       </div>
 
       {/* Scenes Catalog Table */}
-      <div className="bg-ui-dark border border-ui-border rounded-xl overflow-hidden shadow">
+      <div className="bg-white border border-slate-200 rounded-lg overflow-hidden shadow-xs">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs text-slate-300">
-            <thead className="bg-slate-900/80 text-slate-400 font-semibold border-b border-ui-border">
+          <table className="w-full text-left text-xs text-slate-700">
+            <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200 uppercase tracking-wider text-[11px]">
               <tr>
-                <th className="px-5 py-3.5">Scene Identifier</th>
-                <th className="px-5 py-3.5">Sensor</th>
-                <th className="px-5 py-3.5">Acquisition Date</th>
-                <th className="px-5 py-3.5">Coordinates</th>
-                <th className="px-5 py-3.5">Cloud Cover</th>
-                <th className="px-5 py-3.5">Source</th>
-                <th className="px-5 py-3.5 text-right">Lineage</th>
+                <th className="px-4 py-3">Scene Identifier</th>
+                <th className="px-4 py-3">Sensor</th>
+                <th className="px-4 py-3">Acquisition Date</th>
+                <th className="px-4 py-3">Coordinates</th>
+                <th className="px-4 py-3">Cloud Cover</th>
+                <th className="px-4 py-3">Source</th>
+                <th className="px-4 py-3 text-right">Lineage</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-800">
+            <tbody className="divide-y divide-slate-100">
               {isLoading ? (
                 <tr>
-                  <td colSpan={7} className="px-5 py-8 text-center text-slate-400">
-                    <Loader2 className="w-5 h-5 animate-spin mx-auto mb-2" />
+                  <td colSpan={7} className="px-4 py-8 text-center text-slate-500">
+                    <Loader2 className="w-4 h-4 animate-spin text-teal-800 mx-auto mb-2" />
                     <span>Loading scene registry...</span>
                   </td>
                 </tr>
               ) : filteredScenes.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-5 py-8 text-center text-slate-400">
+                  <td colSpan={7} className="px-4 py-8 text-center text-slate-500">
                     No scenes found matching search criteria.
                   </td>
                 </tr>
               ) : (
                 filteredScenes.map((scene) => (
-                  <tr key={scene.id} className="hover:bg-slate-800/40 transition-colors">
-                    <td className="px-5 py-3.5 font-medium text-white font-mono">
+                  <tr key={scene.id} className="hover:bg-slate-50 transition-colors">
+                    <td className="px-4 py-3 font-semibold text-slate-900 font-mono">
                       {scene.scene_name}
                     </td>
-                    <td className="px-5 py-3.5">
-                      <span className="px-2 py-0.5 rounded bg-slate-800 text-slate-300 font-medium">
+                    <td className="px-4 py-3">
+                      <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-medium">
                         {scene.sensor}
                       </span>
                     </td>
-                    <td className="px-5 py-3.5">
+                    <td className="px-4 py-3 font-mono text-slate-600">
                       {new Date(scene.acquisition_date).toLocaleDateString()}
                     </td>
-                    <td className="px-5 py-3.5 font-mono text-slate-400">
+                    <td className="px-4 py-3 font-mono text-slate-600">
                       {scene.latitude.toFixed(4)}, {scene.longitude.toFixed(4)}
                     </td>
-                    <td className="px-5 py-3.5">
+                    <td className="px-4 py-3 font-mono">
                       {scene.cloud_percentage}%
                     </td>
-                    <td className="px-5 py-3.5">
+                    <td className="px-4 py-3">
                       {scene.source}
                     </td>
-                    <td className="px-5 py-3.5 text-right">
+                    <td className="px-4 py-3 text-right">
                       <button
                         onClick={() => handleViewProvenance(scene.id)}
-                        className="text-xs text-satellite-400 hover:text-satellite-300 font-medium inline-flex items-center gap-1"
+                        className="text-xs text-teal-800 hover:text-teal-900 font-semibold inline-flex items-center gap-1"
                       >
                         <History className="w-3.5 h-3.5" />
                         <span>Audit Trail</span>
@@ -192,38 +192,38 @@ export const DataManagement: React.FC = () => {
 
       {/* Ingest Modal */}
       {showIngestModal && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-ui-dark border border-ui-border rounded-xl max-w-lg w-full p-6 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <h3 className="text-base font-semibold text-white">Ingest New Satellite Scene</h3>
+        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white border border-slate-300 rounded-lg max-w-lg w-full p-5 shadow-xl space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+              <h3 className="text-sm font-bold uppercase tracking-wider text-slate-900">Ingest New Satellite Scene</h3>
               <button 
                 onClick={() => setShowIngestModal(false)}
-                className="text-slate-400 hover:text-white"
+                className="text-slate-400 hover:text-slate-700"
               >
-                <X className="w-5 h-5" />
+                <X className="w-4 h-4" />
               </button>
             </div>
 
-            <form onSubmit={handleIngest} className="space-y-4">
+            <form onSubmit={handleIngest} className="space-y-3">
               <div>
-                <label className="text-xs text-slate-300 block mb-1">Scene Name / Product Tag</label>
+                <label className="text-[11px] font-medium text-slate-600 block mb-1">Scene Name / Product Tag</label>
                 <input 
                   type="text" 
                   value={newSceneName}
                   onChange={(e) => setNewSceneName(e.target.value)}
                   placeholder="e.g. Pune_Urban_West_2026"
-                  className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-satellite-500"
+                  className="w-full bg-white border border-slate-300 rounded p-2 text-xs text-slate-800 focus:outline-none focus:border-teal-700 font-mono"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs text-slate-300 block mb-1">Sensor</label>
+                  <label className="text-[11px] font-medium text-slate-600 block mb-1">Sensor</label>
                   <select 
                     value={newSensor}
                     onChange={(e) => setNewSensor(e.target.value)}
                     aria-label="Sensor"
-                    className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-satellite-500"
+                    className="w-full bg-white border border-slate-300 rounded p-2 text-xs text-slate-800 focus:outline-none focus:border-teal-700"
                   >
                     <option value="Sentinel-2">Sentinel-2 (MSI)</option>
                     <option value="Landsat-8">Landsat-8 (OLI)</option>
@@ -231,61 +231,61 @@ export const DataManagement: React.FC = () => {
                   </select>
                 </div>
                 <div>
-                  <label className="text-xs text-slate-300 block mb-1">Source Agency</label>
+                  <label className="text-[11px] font-medium text-slate-600 block mb-1">Source Agency</label>
                   <input 
                     type="text" 
                     value={newSource}
                     onChange={(e) => setNewSource(e.target.value)}
                     placeholder="ESA / Copernicus CDSE"
-                    className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-satellite-500"
+                    className="w-full bg-white border border-slate-300 rounded p-2 text-xs text-slate-800 focus:outline-none focus:border-teal-700"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <label className="text-xs text-slate-300 block mb-1">Latitude</label>
+                  <label className="text-[11px] font-medium text-slate-600 block mb-1">Latitude</label>
                   <input 
                     type="number" 
                     step="any"
                     value={newLat}
                     onChange={(e) => setNewLat(e.target.value)}
-                    className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-satellite-500"
+                    className="w-full bg-white border border-slate-300 rounded p-2 text-xs text-slate-800 focus:outline-none focus:border-teal-700 font-mono"
                   />
                 </div>
                 <div>
-                  <label className="text-xs text-slate-300 block mb-1">Longitude</label>
+                  <label className="text-[11px] font-medium text-slate-600 block mb-1">Longitude</label>
                   <input 
                     type="number" 
                     step="any"
                     value={newLon}
                     onChange={(e) => setNewLon(e.target.value)}
-                    className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-satellite-500"
+                    className="w-full bg-white border border-slate-300 rounded p-2 text-xs text-slate-800 focus:outline-none focus:border-teal-700 font-mono"
                   />
                 </div>
                 <div>
-                  <label className="text-xs text-slate-300 block mb-1">Cloud %</label>
+                  <label className="text-[11px] font-medium text-slate-600 block mb-1">Cloud %</label>
                   <input 
                     type="number" 
                     value={newCloud}
                     onChange={(e) => setNewCloud(e.target.value)}
-                    className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-satellite-500"
+                    className="w-full bg-white border border-slate-300 rounded p-2 text-xs text-slate-800 focus:outline-none focus:border-teal-700 font-mono"
                   />
                 </div>
               </div>
 
-              <div className="pt-2 flex justify-end gap-3">
+              <div className="pt-2 flex justify-end gap-2 border-t border-slate-200">
                 <button
                   type="button"
                   onClick={() => setShowIngestModal(false)}
-                  className="px-4 py-2 rounded-lg bg-slate-800 text-slate-300 text-xs font-medium hover:bg-slate-700"
+                  className="px-3 py-1.5 rounded bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 text-xs font-medium"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isIngesting}
-                  className="px-4 py-2 rounded-lg bg-satellite-500 text-white text-xs font-semibold hover:bg-satellite-600 disabled:opacity-50 flex items-center gap-1.5"
+                  className="px-4 py-1.5 rounded bg-teal-800 text-white text-xs font-semibold hover:bg-teal-900 disabled:opacity-50 flex items-center gap-1.5 shadow-xs"
                 >
                   {isIngesting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
                   <span>Register Scene</span>
@@ -298,33 +298,33 @@ export const DataManagement: React.FC = () => {
 
       {/* Provenance Audit Modal */}
       {selectedProvenance && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-ui-dark border border-ui-border rounded-xl max-w-xl w-full p-6 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white border border-slate-300 rounded-lg max-w-xl w-full p-5 shadow-xl space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
               <div>
-                <h3 className="text-base font-semibold text-white">Data Provenance & Audit Log</h3>
-                <span className="text-xs text-slate-400 font-mono">{selectedProvenance.scene_name}</span>
+                <h3 className="text-sm font-bold uppercase tracking-wider text-slate-900">Data Provenance & Audit Log</h3>
+                <span className="text-xs text-slate-500 font-mono">{selectedProvenance.scene_name}</span>
               </div>
               <button 
                 onClick={() => setSelectedProvenance(null)}
-                className="text-slate-400 hover:text-white"
+                className="text-slate-400 hover:text-slate-700"
               >
-                <X className="w-5 h-5" />
+                <X className="w-4 h-4" />
               </button>
             </div>
 
-            <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
+            <div className="space-y-2.5 max-h-80 overflow-y-auto pr-1">
               {selectedProvenance.processing_logs?.map((log) => (
-                <div key={log.id} className="p-3 bg-slate-900/70 border border-slate-800 rounded-lg space-y-1">
+                <div key={log.id} className="p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-1">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold text-satellite-400 uppercase tracking-wider">
+                    <span className="text-xs font-bold text-teal-800 uppercase tracking-wider font-mono">
                       {log.operation}
                     </span>
                     <span className="text-[11px] text-slate-500 font-mono">
                       {new Date(log.timestamp).toLocaleTimeString()}
                     </span>
                   </div>
-                  <div className="text-[11px] text-slate-300 font-mono break-all bg-slate-950 p-2 rounded border border-slate-900">
+                  <div className="text-[11px] text-slate-700 font-mono break-all bg-white p-2 rounded border border-slate-200">
                     Model: {log.model_version} • Parameters: {log.parameters}
                   </div>
                 </div>

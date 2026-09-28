@@ -70,52 +70,52 @@ function App() {
   const isUpstreamDown = !healthStatus?.cdse_connected || healthStatus?.data_mode === 'upstream_unavailable';
 
   return (
-    <div className="flex h-screen bg-ui-darker">
+    <div className="flex h-screen bg-slate-100 text-slate-800 antialiased font-sans">
       <Sidebar 
         currentPage={currentPage} 
         onPageChange={(page) => setCurrentPage(page as PageType)}
         healthStatus={healthStatus}
       />
-      <main className="flex-1 flex flex-col overflow-hidden">
-        <header className="glass-effect border-b border-ui-border px-6 py-4">
+      <main className="flex-1 flex flex-col overflow-hidden bg-slate-50">
+        <header className="bg-white border-b border-slate-200 px-6 py-3.5 shadow-xs shrink-0">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
-              <div className="w-8 h-8 bg-satellite-500 rounded-lg flex items-center justify-center">
-                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="w-8 h-8 bg-teal-800 rounded flex items-center justify-center text-white shadow-xs">
+                <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               </div>
               <div>
-                <h1 className="text-xl font-semibold text-white">Satellite Change Analysis</h1>
-                <p className="text-xs text-slate-400">SIH 2026 - Problem Statement 26227</p>
+                <h1 className="text-base font-semibold text-slate-900 tracking-tight">TerraVektor &bull; Geospatial Intelligence</h1>
+                <p className="text-xs text-slate-500 font-mono">Sentinel-2 Surface Change & Semantic Retrieval Console</p>
               </div>
             </div>
             <div className="flex items-center space-x-3">
               {healthStatus && (
-                <div className="flex items-center space-x-2">
-                  <div className={`w-2 h-2 rounded-full ${
-                    healthStatus.status === 'healthy' && !isUpstreamDown ? 'bg-green-500' : 'bg-red-500'
+                <div className="flex items-center space-x-1.5 text-xs text-slate-600 font-mono">
+                  <span className={`w-2 h-2 rounded-full ${
+                    healthStatus.status === 'healthy' && !isUpstreamDown ? 'bg-emerald-600' : 'bg-red-600'
                   }`} />
-                  <span className="text-xs text-slate-300">
-                    {healthStatus.status === 'healthy' && !isUpstreamDown ? 'System Online' : 'Copernicus Degraded'}
+                  <span>
+                    {healthStatus.status === 'healthy' && !isUpstreamDown ? 'Services Online' : 'Copernicus Degraded'}
                   </span>
                 </div>
               )}
 
               {/* Data Mode Indicator */}
               {isDemoMode || healthStatus?.data_mode === 'demo_data' ? (
-                <div className="flex items-center space-x-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-500/15 text-amber-400 border border-amber-500/30">
-                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                <div className="flex items-center space-x-1.5 px-2.5 py-1 rounded text-xs font-mono font-medium bg-amber-50 text-amber-900 border border-amber-300">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-600" />
                   <span>DEMO DATA</span>
                 </div>
               ) : isUpstreamDown ? (
-                <div className="flex items-center space-x-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-500/15 text-rose-400 border border-rose-500/30">
-                  <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />
+                <div className="flex items-center space-x-1.5 px-2.5 py-1 rounded text-xs font-mono font-medium bg-rose-50 text-rose-900 border border-rose-300">
+                  <span className="w-1.5 h-1.5 rounded-full bg-rose-600" />
                   <span>UPSTREAM UNAVAILABLE</span>
                 </div>
               ) : (
-                <div className="flex items-center space-x-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 shadow-sm">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                <div className="flex items-center space-x-1.5 px-2.5 py-1 rounded text-xs font-mono font-medium bg-teal-50 text-teal-900 border border-teal-300">
+                  <span className="w-1.5 h-1.5 rounded-full bg-teal-700" />
                   <span>LIVE SENTINEL-2</span>
                 </div>
               )}
@@ -124,10 +124,10 @@ function App() {
               <button
                 onClick={toggleDemoMode}
                 title={isDemoMode ? 'Switch back to Live Sentinel-2 queries' : 'Explicitly enable Development Demo Mode'}
-                className={`text-xs px-2.5 py-1 rounded-lg border transition-all ${
+                className={`text-xs px-2.5 py-1 rounded border font-medium transition-colors ${
                   isDemoMode 
-                    ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 hover:bg-amber-500/30'
-                    : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-white hover:border-slate-600'
+                    ? 'bg-amber-100 text-amber-900 border-amber-300 hover:bg-amber-200'
+                    : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
                 }`}
               >
                 {isDemoMode ? 'Exit Demo Mode' : 'Demo Mode'}

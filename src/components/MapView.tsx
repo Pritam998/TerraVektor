@@ -86,20 +86,20 @@ const MapView: React.FC<MapViewProps> = ({
     markers.forEach((markerData) => {
       const markerElement = document.createElement('div');
       markerElement.className = 'custom-marker';
-      markerElement.style.width = '24px';
-      markerElement.style.height = '24px';
-      markerElement.style.backgroundColor = '#0ea5e9';
+      markerElement.style.width = '20px';
+      markerElement.style.height = '20px';
+      markerElement.style.backgroundColor = '#0f766e';
       markerElement.style.borderRadius = '50%';
-      markerElement.style.border = '3px solid white';
+      markerElement.style.border = '2px solid white';
       markerElement.style.cursor = 'pointer';
-      markerElement.style.boxShadow = '0 2px 4px rgba(0,0,0,0.3)';
+      markerElement.style.boxShadow = '0 1px 4px rgba(0,0,0,0.35)';
 
-      const popup = new maplibregl.Popup({ offset: 25 })
+      const popup = new maplibregl.Popup({ offset: 20 })
         .setHTML(`
-          <div style="padding: 8px; min-width: 200px;">
-            <h3 style="margin: 0 0 4px 0; font-weight: 600; font-size: 14px;">${markerData.title || 'Location'}</h3>
-            <p style="margin: 0; font-size: 12px; color: #64748b;">${markerData.description || ''}</p>
-            <p style="margin: 4px 0 0 0; font-size: 11px; color: #94a3b8;">
+          <div style="padding: 6px; min-width: 180px; color: #0f172a; font-family: system-ui, sans-serif;">
+            <h3 style="margin: 0 0 3px 0; font-weight: 600; font-size: 13px; color: #0f172a;">${markerData.title || 'Location'}</h3>
+            <p style="margin: 0; font-size: 11px; color: #475569;">${markerData.description || ''}</p>
+            <p style="margin: 4px 0 0 0; font-size: 10px; font-family: monospace; color: #64748b;">
               ${markerData.latitude.toFixed(4)}, ${markerData.longitude.toFixed(4)}
             </p>
           </div>
@@ -135,10 +135,10 @@ const MapView: React.FC<MapViewProps> = ({
     <div className="relative w-full h-full">
       <div ref={mapContainer} className="absolute inset-0 w-full h-full" />
       {!mapLoaded && (
-        <div className="absolute inset-0 flex items-center justify-center bg-slate-900">
+        <div className="absolute inset-0 flex items-center justify-center bg-slate-100">
           <div className="text-center">
-            <div className="w-8 h-8 border-2 border-satellite-500 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
-            <p className="text-sm text-slate-400">Loading map...</p>
+            <div className="w-8 h-8 border-2 border-teal-700 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+            <p className="text-xs text-slate-500 font-mono">Loading basemap...</p>
           </div>
         </div>
       )}
