@@ -78,3 +78,15 @@
 .candidate-custom-tooltip:before {
   border-top-color: #ffffff !important;
 }
+
+/* Satellite image rendering optimizations */
+.leaflet-image-layer {
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: high-quality;
+}
+
+/* Cockpit grid subtle line separators */
+.cockpit-grid-border {
+  border-color: #e2e8f0;
+}
+

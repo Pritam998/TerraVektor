@@ -5,6 +5,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { Buffer } from 'buffer';
 import jpeg from 'jpeg-js';
+import * as GeoTIFF from 'geotiff';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -1255,10 +1256,53 @@ async function startServer() {
         const monthNum = parseInt(cleanDate.slice(4, 6), 10);
         const platform = targetProduct.name.startsWith('S2A') ? 'S2A' : 'S2B';
 
-        const mirrorUrl = `https://sentinel-cogs.s3.us-west-2.amazonaws.com/sentinel-s2-l2a-cogs/${utm}/${latBand}/${square}/${year}/${monthNum}/${platform}_${tile}_${cleanDate}_0_L2A/thumbnail.jpg`;
+        const mirrorTciUrl = `https://sentinel-cogs.s3.us-west-2.amazonaws.com/sentinel-s2-l2a-cogs/${utm}/${latBand}/${square}/${year}/${monthNum}/${platform}_${tile}_${cleanDate}_0_L2A/TCI.tif`;
+        const mirrorThumbUrl = `https://sentinel-cogs.s3.us-west-2.amazonaws.com/sentinel-s2-l2a-cogs/${utm}/${latBand}/${square}/${year}/${monthNum}/${platform}_${tile}_${cleanDate}_0_L2A/thumbnail.jpg`;
 
+        // 1. Try fetching high-resolution 687x687 Overview from Cloud-Optimized GeoTIFF (TCI.tif)
         try {
-          const imgRes = await fetch(mirrorUrl);
+          const fetchPromise = (async () => {
+            const tiff = await GeoTIFF.fromUrl(mirrorTciUrl);
+            const img = await tiff.getImage(4); // Overview 4 is 687 x 687
+            const w = img.getWidth();
+            const h = img.getHeight();
+            const rasters = await img.readRasters();
+            const rgba = Buffer.alloc(w * h * 4);
+            const r = rasters[0] as any;
+            const g = rasters[1] as any;
+            const b = rasters[2] as any;
+            for (let i = 0; i < w * h; i++) {
+              rgba[i * 4] = r[i];
+              rgba[i * 4 + 1] = g[i];
+              rgba[i * 4 + 2] = b[i];
+              rgba[i * 4 + 3] = 255;
+            }
+            const encoded = jpeg.encode({ data: rgba, width: w, height: h }, 88);
+            return Buffer.from(encoded.data);
+          })();
+
+          const timeoutPromise = new Promise<null>((_, reject) => setTimeout(() => reject(new Error('TCI timeout')), 3500));
+          const highResBuffer = await Promise.race([fetchPromise, timeoutPromise]);
+
+          if (highResBuffer) {
+            previewCache.set(productId, {
+              buffer: highResBuffer,
+              contentType: 'image/jpeg',
+              source: 'sentinel2_l2a_cog_overview',
+              timestamp: Date.now()
+            });
+            res.setHeader('Content-Type', 'image/jpeg');
+            res.setHeader('X-Preview-Source', 'sentinel2_l2a_cog_overview');
+            res.setHeader('Cache-Control', 'public, max-age=86400');
+            return res.send(highResBuffer);
+          }
+        } catch {
+          // Fall back gracefully to standard thumbnail
+        }
+
+        // 2. Fallback to thumbnail.jpg if TCI range request fails or times out
+        try {
+          const imgRes = await fetch(mirrorThumbUrl);
           if (imgRes.ok) {
             const arrayBuf = await imgRes.arrayBuffer();
             const buffer = Buffer.from(arrayBuf);

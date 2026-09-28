@@ -2,25 +2,21 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { 
-  Sliders, 
-  Layers, 
-  Maximize2, 
   Eye, 
   EyeOff, 
-  MapPin, 
-  Calendar, 
-  Cloud, 
-  CheckCircle2, 
-  AlertTriangle, 
+  Layers, 
+  Maximize2, 
+  Sliders, 
   Building2, 
-  Construction, 
-  ZoomIn, 
-  ZoomOut, 
-  Compass, 
+  CheckCircle2, 
   Info,
-  ExternalLink,
-  ChevronRight,
-  Crosshair
+  Construction,
+  Compass,
+  Crosshair,
+  Plus,
+  Minus,
+  RotateCcw,
+  Sparkles
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { BuiltUpAnalysisResult, ChangeAnalysisResult } from '../../../types';
@@ -38,7 +34,7 @@ export interface SceneSummary {
 
 export interface CandidateRegion {
   id: string;
-  type: 'new_construction_candidate' | 'building_expansion_candidate' | string;
+  type: string;
   pixel_count: number;
   area_m2: number;
   centroid: [number, number] | number[];
@@ -52,7 +48,7 @@ export interface CandidateRegion {
 interface SatelliteInvestigationMapProps {
   beforeScene: SceneSummary;
   afterScene: SceneSummary;
-  aoiBbox: [number, number, number, number];
+  aoiBbox: [number, number, number, number]; // [minLon, minLat, maxLon, maxLat]
   analysis?: BuiltUpAnalysisResult | ChangeAnalysisResult | null;
   selectedCandidateId?: string | null;
   onSelectCandidate?: (candidateId: string | null) => void;
@@ -88,6 +84,7 @@ export const SatelliteInvestigationMap: React.FC<SatelliteInvestigationMapProps>
   const [isDraggingSlider, setIsDraggingSlider] = useState<boolean>(false);
   const [showChangeOverlay, setShowChangeOverlay] = useState<boolean>(true);
   const [showCandidates, setShowCandidates] = useState<boolean>(true);
+  const [showAoiBoundary, setShowAoiBoundary] = useState<boolean>(true);
   const [activeBaseLayer, setActiveBaseLayer] = useState<'satellite' | 'osm'>('satellite');
 
   // Extract candidate regions if built-up analysis
@@ -102,20 +99,17 @@ export const SatelliteInvestigationMap: React.FC<SatelliteInvestigationMapProps>
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return;
 
-    // Calculate map center from AOI
     const [minLon, minLat, maxLon, maxLat] = aoiBbox;
     const centerLat = (minLat + maxLat) / 2;
     const centerLon = (minLon + maxLon) / 2;
 
     const map = L.map(mapContainerRef.current, {
       center: [centerLat, centerLon],
-      zoom: 11,
+      zoom: 12,
       zoomControl: false,
       attributionControl: false
     });
 
-    // Create custom panes for Before/After split
-    // Leaflet default tilePane is 200, overlayPane is 400
     const bPane = map.createPane('beforePane');
     bPane.style.zIndex = '400';
 
@@ -129,7 +123,6 @@ export const SatelliteInvestigationMap: React.FC<SatelliteInvestigationMapProps>
     afterPaneRef.current = aPane;
     maskPaneRef.current = mPane;
 
-    // Basemaps (Real Satellite & OSM)
     const satelliteLayer = L.tileLayer(
       'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
       {
@@ -146,14 +139,25 @@ export const SatelliteInvestigationMap: React.FC<SatelliteInvestigationMapProps>
     satelliteLayer.addTo(map);
     baseLayersRef.current = { osm: osmLayer, satellite: satelliteLayer };
 
-    // Attribution
     L.control.attribution({ position: 'bottomright', prefix: false })
-      .addAttribution('&copy; <a href="https://dataspace.copernicus.eu/">Copernicus Sentinel-2</a> | Esri')
+      .addAttribution('&copy; <a href="https://dataspace.copernicus.eu/">Copernicus Sentinel-2</a>')
       .addTo(map);
 
     mapRef.current = map;
 
+    // Attach ResizeObserver to container to call invalidateSize() when dimensions change (Section 12)
+    const resizeObserver = new ResizeObserver(() => {
+      if (mapRef.current) {
+        mapRef.current.invalidateSize();
+      }
+    });
+
+    if (mapContainerRef.current) {
+      resizeObserver.observe(mapContainerRef.current);
+    }
+
     return () => {
+      resizeObserver.disconnect();
       map.remove();
       mapRef.current = null;
     };
@@ -162,15 +166,12 @@ export const SatelliteInvestigationMap: React.FC<SatelliteInvestigationMapProps>
   // Update Clip Paths on Panes when slider position changes
   const applyPaneClips = useCallback((pos: number) => {
     if (beforePaneRef.current) {
-      // Left side shows Before: clip right side by (100 - pos)%
       beforePaneRef.current.style.clipPath = `inset(0 ${100 - pos}% 0 0)`;
     }
     if (afterPaneRef.current) {
-      // Right side shows After: clip left side by pos%
       afterPaneRef.current.style.clipPath = `inset(0 0 0 ${pos}%)`;
     }
     if (maskPaneRef.current) {
-      // Change mask stays on the After side
       maskPaneRef.current.style.clipPath = `inset(0 0 0 ${pos}%)`;
     }
   }, []);
@@ -184,7 +185,6 @@ export const SatelliteInvestigationMap: React.FC<SatelliteInvestigationMapProps>
     const map = mapRef.current;
     if (!map) return;
 
-    // Remove existing overlays
     if (beforeOverlayRef.current) {
       map.removeLayer(beforeOverlayRef.current);
       beforeOverlayRef.current = null;
@@ -201,23 +201,23 @@ export const SatelliteInvestigationMap: React.FC<SatelliteInvestigationMapProps>
     const [minLon, minLat, maxLon, maxLat] = aoiBbox;
     const aoiBounds = L.latLngBounds([minLat, minLon], [maxLat, maxLon]);
 
-    // AOI Rect on base map
-    const aoiRect = L.rectangle(aoiBounds, {
-      color: '#38bdf8',
-      weight: 2,
-      dashArray: '5, 5',
-      fillColor: '#38bdf8',
-      fillOpacity: 0.05
-    }).addTo(map);
+    if (showAoiBoundary) {
+      const aoiRect = L.rectangle(aoiBounds, {
+        color: '#0f766e',
+        weight: 1.5,
+        dashArray: '4, 4',
+        fillColor: '#0f766e',
+        fillOpacity: 0.04
+      }).addTo(map);
 
-    aoiRect.bindTooltip(
-      `<div class="text-xs font-semibold text-sky-400">Common Working AOI (Aligned)</div>
-       <div class="text-[10px] text-slate-300 font-mono">${minLat.toFixed(3)}, ${minLon.toFixed(3)} to ${maxLat.toFixed(3)}, ${maxLon.toFixed(3)}</div>`,
-      { permanent: false, direction: 'top' }
-    );
-    aoiRectRef.current = aoiRect;
+      aoiRect.bindTooltip(
+        `<div class="text-[10px] font-mono text-teal-900 font-semibold">AOI Grid</div>
+         <div class="text-[9px] text-slate-500 font-mono">${minLat.toFixed(3)}°N, ${minLon.toFixed(3)}°E to ${maxLat.toFixed(3)}°N, ${maxLon.toFixed(3)}°E</div>`,
+        { permanent: false, direction: 'top' }
+      );
+      aoiRectRef.current = aoiRect;
+    }
 
-    // Use scene bounds if provided, otherwise common AOI
     const beforeBounds = beforeScene.bbox 
       ? L.latLngBounds([beforeScene.bbox[1], beforeScene.bbox[0]], [beforeScene.bbox[3], beforeScene.bbox[2]])
       : aoiBounds;
@@ -226,7 +226,6 @@ export const SatelliteInvestigationMap: React.FC<SatelliteInvestigationMapProps>
       ? L.latLngBounds([afterScene.bbox[1], afterScene.bbox[0]], [afterScene.bbox[3], afterScene.bbox[2]])
       : aoiBounds;
 
-    // Before Scene Image Overlay in beforePane
     const beforeUrl = beforeScene.preview_url || `/api/sentinel2/preview/${beforeScene.id}`;
     const beforeOverlay = L.imageOverlay(beforeUrl, beforeBounds, {
       pane: 'beforePane',
@@ -234,7 +233,6 @@ export const SatelliteInvestigationMap: React.FC<SatelliteInvestigationMapProps>
     }).addTo(map);
     beforeOverlayRef.current = beforeOverlay;
 
-    // After Scene Image Overlay in afterPane
     const afterUrl = afterScene.preview_url || `/api/sentinel2/preview/${afterScene.id}`;
     const afterOverlay = L.imageOverlay(afterUrl, afterBounds, {
       pane: 'afterPane',
@@ -242,9 +240,8 @@ export const SatelliteInvestigationMap: React.FC<SatelliteInvestigationMapProps>
     }).addTo(map);
     afterOverlayRef.current = afterOverlay;
 
-    // Fit map bounds to common AOI
-    map.fitBounds(aoiBounds.pad(0.12), { duration: 0.8 });
-  }, [beforeScene, afterScene, aoiBbox]);
+    map.fitBounds(aoiBounds.pad(0.1), { duration: 0.6 });
+  }, [beforeScene, afterScene, aoiBbox, showAoiBoundary]);
 
   // Load Built-Up Change Mask Overlay
   useEffect(() => {
@@ -272,12 +269,11 @@ export const SatelliteInvestigationMap: React.FC<SatelliteInvestigationMapProps>
     maskOverlayRef.current = maskOverlay;
   }, [showChangeOverlay, analysis, builtUpAnalysis, aoiBbox]);
 
-  // Render Interactive Candidate Vectors
+  // Render Interactive Candidate Vectors (Section 7)
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
 
-    // Clear existing candidate vectors
     candidateLayersRef.current.forEach(layer => map.removeLayer(layer));
     candidateLayersRef.current.clear();
 
@@ -294,30 +290,28 @@ export const SatelliteInvestigationMap: React.FC<SatelliteInvestigationMapProps>
 
       const rect = L.rectangle(bounds, {
         color: strokeColor,
-        weight: isSelected ? 4 : 2.5,
-        dashArray: isSelected ? undefined : '4, 4',
+        weight: isSelected ? 3.5 : 2,
+        dashArray: isSelected ? undefined : '3, 3',
         fillColor: fillColor,
-        fillOpacity: isSelected ? 0.45 : 0.25,
+        fillOpacity: isSelected ? 0.42 : 0.22,
         className: isSelected ? 'candidate-selected-pulsing' : 'candidate-vector'
       }).addTo(map);
 
-      // Tooltip
       const typeLabel = isNewConstruction ? 'New Construction Candidate' : 'Building Expansion Candidate';
-      const typeIcon = isNewConstruction ? '🟧' : '🟪';
       const tooltipHtml = `
         <div class="p-1 font-sans text-xs">
           <div class="font-bold flex items-center gap-1.5" style="color: ${strokeColor};">
-            <span>${typeIcon}</span>
-            <span>${typeLabel}</span>
+            <span>${isNewConstruction ? '🟧' : '🟪'}</span>
+            <span>${cand.id} &bull; ${typeLabel}</span>
           </div>
-          <div class="text-[11px] text-slate-300 mt-1">
-            Area: <strong class="text-white">${cand.area_m2.toLocaleString()} m²</strong> (${(cand.area_m2 / 10000).toFixed(2)} ha)
+          <div class="text-[11px] text-slate-700 mt-1 font-mono">
+            Area: <strong class="text-slate-900">${cand.area_m2.toLocaleString()} m²</strong> (${(cand.area_m2 / 10000).toFixed(2)} ha)
           </div>
-          <div class="text-[10px] text-slate-400 font-mono mt-0.5">
-            ΔNDVI: ${cand.mean_delta_ndvi.toFixed(3)} | ΔNDBI: +${cand.mean_delta_ndbi.toFixed(3)}
+          <div class="text-[10px] text-slate-500 font-mono mt-0.5">
+            &Delta;NDVI: ${cand.mean_delta_ndvi.toFixed(3)} | &Delta;NDBI: +${cand.mean_delta_ndbi.toFixed(3)}
           </div>
-          <div class="text-[10px] text-sky-400 font-semibold mt-1">
-            Click to inspect evidence &rarr;
+          <div class="text-[10px] text-teal-800 font-semibold mt-1 font-sans">
+            Click to load in Evidence Spine &rarr;
           </div>
         </div>
       `;
@@ -347,7 +341,7 @@ export const SatelliteInvestigationMap: React.FC<SatelliteInvestigationMapProps>
     const bounds = L.latLngBounds([cMinLat, cMinLon], [cMaxLat, cMaxLon]);
 
     map.flyToBounds(bounds.pad(0.35), {
-      duration: 1.2,
+      duration: 1.0,
       maxZoom: 14
     });
   }, [selectedCandidate]);
@@ -375,21 +369,13 @@ export const SatelliteInvestigationMap: React.FC<SatelliteInvestigationMapProps>
 
   useEffect(() => {
     const onMouseMove = (e: MouseEvent) => {
-      if (isDraggingSlider) {
-        handleSliderMove(e.clientX);
-      }
+      if (isDraggingSlider) handleSliderMove(e.clientX);
     };
-    const onMouseUp = () => {
-      setIsDraggingSlider(false);
-    };
+    const onMouseUp = () => setIsDraggingSlider(false);
     const onTouchMove = (e: TouchEvent) => {
-      if (isDraggingSlider && e.touches.length > 0) {
-        handleSliderMove(e.touches[0].clientX);
-      }
+      if (isDraggingSlider && e.touches.length > 0) handleSliderMove(e.touches[0].clientX);
     };
-    const onTouchEnd = () => {
-      setIsDraggingSlider(false);
-    };
+    const onTouchEnd = () => setIsDraggingSlider(false);
 
     if (isDraggingSlider) {
       window.addEventListener('mousemove', onMouseMove);
@@ -405,19 +391,27 @@ export const SatelliteInvestigationMap: React.FC<SatelliteInvestigationMapProps>
     };
   }, [isDraggingSlider, handleSliderMove]);
 
-  // Actions
+  // Map Controls (Section 6)
   const handleFitAoi = () => {
     const map = mapRef.current;
     if (!map) return;
     const [minLon, minLat, maxLon, maxLat] = aoiBbox;
-    map.flyToBounds([[minLat, minLon], [maxLat, maxLon]], { padding: [40, 40], duration: 1 });
+    map.flyToBounds([[minLat, minLon], [maxLat, maxLon]], { padding: [30, 30], duration: 0.8 });
   };
 
   const handleFitCandidate = () => {
     const map = mapRef.current;
     if (!map || !selectedCandidate) return;
     const [cMinLon, cMinLat, cMaxLon, cMaxLat] = selectedCandidate.bounding_box;
-    map.flyToBounds([[cMinLat, cMinLon], [cMaxLat, cMaxLon]], { padding: [60, 60], maxZoom: 14, duration: 1 });
+    map.flyToBounds([[cMinLat, cMinLon], [cMaxLat, cMaxLon]], { padding: [50, 50], maxZoom: 14, duration: 0.8 });
+  };
+
+  const handleZoomIn = () => {
+    mapRef.current?.zoomIn();
+  };
+
+  const handleZoomOut = () => {
+    mapRef.current?.zoomOut();
   };
 
   const handleToggleBaseMap = () => {
@@ -437,412 +431,199 @@ export const SatelliteInvestigationMap: React.FC<SatelliteInvestigationMapProps>
   };
 
   return (
-    <div className="space-y-4">
-      {/* Map Header Toolbar with Controls */}
-      <div className="flex flex-wrap items-center justify-between gap-3 bg-white border border-slate-200 rounded-lg p-3 shadow-xs">
-        {/* Left: Investigation Title & Spatial Alignment Verified */}
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center space-x-2">
-            <Sliders className="w-4 h-4 text-teal-700" />
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-900">Bi-Temporal Inspection</span>
-          </div>
+    <div className="relative w-full h-[620px] lg:h-[700px] rounded-md overflow-hidden border border-slate-200 shadow-xs bg-slate-950 select-none">
+      {/* 1. Underlying Leaflet Map Canvas */}
+      <div 
+        ref={sliderContainerRef}
+        className="w-full h-full relative cursor-grab active:cursor-grabbing"
+      >
+        <div ref={mapContainerRef} className="w-full h-full" />
 
-          <div className="hidden sm:flex items-center space-x-1.5 px-2.5 py-1 rounded text-[11px] font-mono font-medium bg-teal-50 text-teal-800 border border-teal-200">
-            <CheckCircle2 className="w-3.5 h-3.5 text-teal-700" />
-            <span>Spatially Aligned 10m Grid</span>
-          </div>
-        </div>
-
-        {/* Right: Interactive Map Controls */}
-        <div className="flex flex-wrap items-center gap-2">
-          {/* Slider Preset Buttons */}
-          <div className="flex items-center bg-slate-100 rounded p-0.5 border border-slate-200 text-xs">
-            <button
-              type="button"
-              onClick={() => setSliderPosition(100)}
-              className={`px-2.5 py-1 rounded transition-colors ${
-                sliderPosition >= 98
-                  ? 'bg-teal-800 text-white font-medium shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-              title="View 100% Before Scene"
-            >
-              Before
-            </button>
-            <button
-              type="button"
-              onClick={() => setSliderPosition(50)}
-              className={`px-2.5 py-1 rounded transition-colors ${
-                sliderPosition > 2 && sliderPosition < 98
-                  ? 'bg-teal-800 text-white font-medium shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-              title="Split 50/50 comparison"
-            >
-              50/50 Split
-            </button>
-            <button
-              type="button"
-              onClick={() => setSliderPosition(0)}
-              className={`px-2.5 py-1 rounded transition-colors ${
-                sliderPosition <= 2
-                  ? 'bg-teal-800 text-white font-medium shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-              title="View 100% After Scene"
-            >
-              After
-            </button>
-          </div>
-
-          {/* Toggle Change Overlay - Orange Classification */}
-          <button
-            type="button"
-            onClick={() => setShowChangeOverlay(!showChangeOverlay)}
-            className={`flex items-center space-x-1.5 px-2.5 py-1 rounded text-xs font-medium border transition-colors ${
-              showChangeOverlay
-                ? 'bg-orange-50 text-orange-900 border-orange-400 font-semibold'
-                : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
-            }`}
-            title="Toggle Built-up Change Mask Overlay"
-          >
-            {showChangeOverlay ? <Eye className="w-3.5 h-3.5 text-orange-600" /> : <EyeOff className="w-3.5 h-3.5" />}
-            <span>Change Mask</span>
-          </button>
-
-          {/* Toggle Candidates - Purple Classification */}
-          {candidateList.length > 0 && (
-            <button
-              type="button"
-              onClick={() => setShowCandidates(!showCandidates)}
-              className={`flex items-center space-x-1.5 px-2.5 py-1 rounded text-xs font-medium border transition-colors ${
-                showCandidates
-                  ? 'bg-purple-50 text-purple-900 border-purple-400 font-semibold'
-                  : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
-              }`}
-              title="Toggle Candidate Region Highlights"
-            >
-              <Building2 className="w-3.5 h-3.5 text-purple-600" />
-              <span>Candidates ({candidateList.length})</span>
-            </button>
-          )}
-
-          {/* Basemap Toggle */}
-          <button
-            type="button"
-            onClick={handleToggleBaseMap}
-            className="flex items-center space-x-1.5 px-2.5 py-1 rounded text-xs font-medium bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 transition-colors"
-            title="Switch Satellite / Street Base Layer"
-          >
-            <Layers className="w-3.5 h-3.5 text-slate-500" />
-            <span>{activeBaseLayer === 'satellite' ? 'Satellite' : 'Street'}</span>
-          </button>
-
-          {/* Fit AOI */}
-          <button
-            type="button"
-            onClick={handleFitAoi}
-            className="p-1.5 rounded bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 transition-colors"
-            title="Fit Entire AOI into view"
-          >
-            <Maximize2 className="w-3.5 h-3.5" />
-          </button>
-
-          {/* Fit Selected Candidate */}
-          {selectedCandidate && (
-            <button
-              type="button"
-              onClick={handleFitCandidate}
-              className="flex items-center space-x-1 px-2.5 py-1 rounded text-xs font-semibold bg-amber-50 text-amber-900 border border-amber-300 hover:bg-amber-100 transition-colors"
-              title="Zoom to selected candidate region"
-            >
-              <Crosshair className="w-3.5 h-3.5" />
-              <span>Zoom Candidate</span>
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Main Investigation Section: Large Map + Evidence Panel */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
-        {/* Map Container */}
-        <div className="lg:col-span-8 relative">
+        {/* 2. Draggable Vertical Swipe Divider Bar */}
+        <div
+          className="absolute top-0 bottom-0 z-30 pointer-events-none transition-transform"
+          style={{ left: `${sliderPosition}%`, transform: 'translateX(-50%)' }}
+        >
+          <div className="w-[1.5px] h-full bg-white shadow-[0_0_6px_rgba(0,0,0,0.6)] mx-auto" />
           <div
-            ref={sliderContainerRef}
-            className="relative w-full h-[580px] sm:h-[620px] rounded-lg overflow-hidden border border-slate-300 shadow-sm bg-slate-900 select-none cursor-grab active:cursor-grabbing"
+            onMouseDown={handleMouseDown}
+            onTouchStart={handleTouchStart}
+            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-auto cursor-ew-resize w-8 h-8 rounded-full bg-white border border-slate-400 shadow-md flex items-center justify-center text-slate-800 hover:scale-105 active:scale-95 transition-transform"
+            title="Drag horizontally to compare Before & After scenes"
           >
-            {/* Underlying Leaflet Map */}
-            <div ref={mapContainerRef} className="w-full h-full" />
-
-            {/* Draggable Vertical Swipe Divider Bar */}
-            <div
-              className="absolute top-0 bottom-0 z-30 pointer-events-none transition-transform"
-              style={{ left: `${sliderPosition}%`, transform: 'translateX(-50%)' }}
-            >
-              {/* Divider Line */}
-              <div className="w-0.5 h-full bg-white shadow-[0_0_8px_rgba(0,0,0,0.5)] mx-auto" />
-
-              {/* Slider Handle Pill in Center */}
-              <div
-                onMouseDown={handleMouseDown}
-                onTouchStart={handleTouchStart}
-                className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-auto cursor-ew-resize w-9 h-9 rounded-full bg-white border-2 border-slate-700 shadow-md flex items-center justify-center text-slate-800 hover:scale-105 active:scale-95 transition-transform"
-                title="Drag horizontally to compare Before & After scenes"
-              >
-                <Sliders className="w-3.5 h-3.5 text-teal-800 rotate-90" />
-              </div>
-            </div>
-
-            {/* Scene Header Badges inside Map View */}
-            {/* Before Scene (Top Left) */}
-            <div className="absolute top-3 left-3 z-20 pointer-events-none">
-              <div className="bg-white/95 backdrop-blur-sm border border-slate-300 rounded px-2.5 py-1.5 shadow-md flex items-center space-x-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-600" />
-                <div>
-                  <div className="text-[11px] font-bold text-slate-900 tracking-wide flex items-center gap-1.5">
-                    <span>BEFORE</span>
-                    <span className="text-[10px] font-normal text-slate-500 font-mono">Baseline</span>
-                  </div>
-                  <div className="text-[10px] text-slate-600 font-mono">
-                    {format(new Date(beforeScene.acquisition_date), 'yyyy-MM-dd')} &bull; Tile {beforeScene.tile_id || 'N/A'}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* After Scene (Top Right) */}
-            <div className="absolute top-3 right-3 z-20 pointer-events-none">
-              <div className="bg-white/95 backdrop-blur-sm border border-slate-300 rounded px-2.5 py-1.5 shadow-md flex items-center space-x-2">
-                <div>
-                  <div className="text-[11px] font-bold text-slate-900 tracking-wide text-right flex items-center justify-end gap-1.5">
-                    <span className="text-[10px] font-normal text-slate-500 font-mono">Monitoring</span>
-                    <span>AFTER</span>
-                  </div>
-                  <div className="text-[10px] text-slate-600 font-mono text-right">
-                    {format(new Date(afterScene.acquisition_date), 'yyyy-MM-dd')} &bull; Tile {afterScene.tile_id || 'N/A'}
-                  </div>
-                </div>
-                <span className="w-2.5 h-2.5 rounded-full bg-sky-600" />
-              </div>
-            </div>
-
-            {/* Map Legend Overlay (Bottom Left) */}
-            <div className="absolute bottom-3 left-3 z-20 pointer-events-none">
-              <div className="bg-white/95 backdrop-blur-sm border border-slate-300 rounded p-2.5 shadow-md text-xs space-y-1.5 min-w-[210px]">
-                <div className="text-[10px] font-bold uppercase tracking-wider text-slate-600 border-b border-slate-200 pb-1">
-                  Investigation Key
-                </div>
-                <div className="flex items-center space-x-2 text-[11px] text-slate-700 font-mono">
-                  <span className="text-emerald-700 font-bold">◀ Before</span>
-                  <span>{format(new Date(beforeScene.acquisition_date), 'yyyy-MM-dd')}</span>
-                </div>
-                <div className="flex items-center space-x-2 text-[11px] text-slate-700 font-mono">
-                  <span className="text-sky-700 font-bold">After ▶</span>
-                  <span>{format(new Date(afterScene.acquisition_date), 'yyyy-MM-dd')}</span>
-                </div>
-
-                <div className="pt-1.5 border-t border-slate-200 space-y-1 text-[11px]">
-                  <div className="text-[10px] font-semibold text-slate-600 uppercase">Change Classifications:</div>
-                  <div className="flex items-center space-x-2">
-                    <span className="w-3 h-3 rounded-xs bg-[#ea580c] border border-orange-700" />
-                    <span className="text-slate-800 font-medium">New Construction Candidate</span>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <span className="w-3 h-3 rounded-xs bg-[#7e22ce] border border-purple-700" />
-                    <span className="text-slate-800 font-medium">Building Expansion Candidate</span>
-                  </div>
-                  <div className="text-[10px] text-slate-500 italic pt-0.5">
-                    10m Sentinel-2 multi-spectral differencing
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Bottom Slider Position Guide */}
-            <div className="absolute bottom-3 right-3 z-20 pointer-events-none">
-              <div className="bg-white/95 backdrop-blur-sm border border-slate-300 rounded px-2 py-0.5 text-[11px] font-mono text-slate-700 shadow-xs">
-                Split: {sliderPosition.toFixed(0)}% / {(100 - sliderPosition).toFixed(0)}%
-              </div>
-            </div>
+            <Sliders className="w-3.5 h-3.5 text-teal-800 rotate-90" />
           </div>
         </div>
 
-        {/* Candidate Evidence Panel */}
-        <div className="lg:col-span-4 space-y-4">
-          <div className="bg-white border border-slate-200 rounded-lg p-4 shadow-xs space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-200 pb-2.5">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900 flex items-center space-x-2">
-                <Compass className="w-3.5 h-3.5 text-teal-800" />
-                <span>Candidate Evidence</span>
-              </h3>
-              {selectedCandidate && (
-                <button
-                  type="button"
-                  onClick={() => onSelectCandidate && onSelectCandidate(null)}
-                  className="text-[11px] text-slate-500 hover:text-slate-900"
-                >
-                  Clear Selection
-                </button>
-              )}
+        {/* 3. FLOATING MAP INSTRUMENT DOCK (Section 6) */}
+        <div className="absolute top-3 left-3 z-30 flex flex-col gap-2 pointer-events-auto">
+          {/* Mode & Layer Dock */}
+          <div className="bg-white/95 backdrop-blur-md border border-slate-200/90 rounded p-1 shadow-md flex items-center space-x-1 text-xs">
+            {/* View Split Presets */}
+            <div className="flex items-center bg-slate-100 rounded p-0.5 text-[11px] font-mono">
+              <button
+                type="button"
+                onClick={() => setSliderPosition(100)}
+                className={`px-2 py-0.5 rounded transition-colors ${
+                  sliderPosition >= 98 ? 'bg-teal-800 text-white font-bold' : 'text-slate-600 hover:text-slate-900'
+                }`}
+                title="View 100% Before Scene"
+              >
+                Before
+              </button>
+              <button
+                type="button"
+                onClick={() => setSliderPosition(50)}
+                className={`px-2 py-0.5 rounded transition-colors ${
+                  sliderPosition > 2 && sliderPosition < 98 ? 'bg-teal-800 text-white font-bold' : 'text-slate-600 hover:text-slate-900'
+                }`}
+                title="Split 50/50 View"
+              >
+                Split
+              </button>
+              <button
+                type="button"
+                onClick={() => setSliderPosition(0)}
+                className={`px-2 py-0.5 rounded transition-colors ${
+                  sliderPosition <= 2 ? 'bg-teal-800 text-white font-bold' : 'text-slate-600 hover:text-slate-900'
+                }`}
+                title="View 100% After Scene"
+              >
+                After
+              </button>
             </div>
 
-            {selectedCandidate ? (
-              <div className="space-y-3.5">
-                {/* Candidate Classification Banner */}
-                <div
-                  className={`p-3 rounded border flex items-start space-x-2.5 ${
-                    selectedCandidate.type === 'new_construction_candidate'
-                      ? 'bg-orange-50 border-orange-300 text-orange-900'
-                      : 'bg-purple-50 border-purple-300 text-purple-900'
-                  }`}
-                >
-                  {selectedCandidate.type === 'new_construction_candidate' ? (
-                    <Construction className="w-4 h-4 text-orange-600 shrink-0 mt-0.5" />
-                  ) : (
-                    <Building2 className="w-4 h-4 text-purple-600 shrink-0 mt-0.5" />
-                  )}
-                  <div>
-                    <div className="text-xs font-bold uppercase tracking-wide">
-                      {selectedCandidate.type === 'new_construction_candidate'
-                        ? 'New Construction Candidate'
-                        : 'Building Expansion Candidate'}
-                    </div>
-                    <div className="text-[11px] font-mono text-slate-600 mt-0.5">
-                      ID: {selectedCandidate.id}
-                    </div>
-                  </div>
-                </div>
+            <div className="w-px h-4 bg-slate-200 mx-0.5" />
 
-                {/* Spectral Metrics Grid */}
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  <div className="bg-slate-50 p-2.5 rounded border border-slate-200">
-                    <span className="text-[11px] text-slate-500 block">Candidate Area</span>
-                    <span className="text-sm font-bold text-slate-900 mt-0.5 block font-mono">
-                      {selectedCandidate.area_m2.toLocaleString()} m²
-                    </span>
-                    <span className="text-[10px] text-slate-500">
-                      ({(selectedCandidate.area_m2 / 10000).toFixed(2)} ha)
-                    </span>
-                  </div>
+            {/* Change Mask Toggle */}
+            <button
+              type="button"
+              onClick={() => setShowChangeOverlay(!showChangeOverlay)}
+              className={`flex items-center space-x-1 px-2 py-1 rounded text-[11px] font-medium transition-colors ${
+                showChangeOverlay
+                  ? 'bg-orange-50 text-orange-900 border border-orange-200'
+                  : 'text-slate-600 hover:bg-slate-100'
+              }`}
+              title="Toggle Change Mask Layer"
+            >
+              {showChangeOverlay ? <Eye className="w-3 h-3 text-orange-600" /> : <EyeOff className="w-3 h-3 text-slate-400" />}
+              <span className="hidden sm:inline">Mask</span>
+            </button>
 
-                  <div className="bg-slate-50 p-2.5 rounded border border-slate-200">
-                    <span className="text-[11px] text-slate-500 block">Pixel Count</span>
-                    <span className="text-sm font-bold text-slate-900 mt-0.5 block font-mono">
-                      {selectedCandidate.pixel_count.toLocaleString()}
-                    </span>
-                    <span className="text-[10px] text-slate-500">at 10m GSD</span>
-                  </div>
+            {/* Candidate Toggle */}
+            {candidateList.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowCandidates(!showCandidates)}
+                className={`flex items-center space-x-1 px-2 py-1 rounded text-[11px] font-medium transition-colors ${
+                  showCandidates
+                    ? 'bg-purple-50 text-purple-900 border border-purple-200'
+                    : 'text-slate-600 hover:bg-slate-100'
+                }`}
+                title="Toggle Candidate Vectors"
+              >
+                <Building2 className={`w-3 h-3 ${showCandidates ? 'text-purple-600' : 'text-slate-400'}`} />
+                <span className="hidden sm:inline">Candidates ({candidateList.length})</span>
+              </button>
+            )}
 
-                  <div className="bg-slate-50 p-2.5 rounded border border-slate-200">
-                    <span className="text-[11px] text-slate-500 block">Mean &Delta;NDVI</span>
-                    <span className="text-sm font-bold text-emerald-700 mt-0.5 block font-mono">
-                      {selectedCandidate.mean_delta_ndvi.toFixed(3)}
-                    </span>
-                    <span className="text-[10px] text-slate-500">Vegetation loss</span>
-                  </div>
+            {/* AOI Boundary Toggle */}
+            <button
+              type="button"
+              onClick={() => setShowAoiBoundary(!showAoiBoundary)}
+              className={`px-1.5 py-1 rounded text-[11px] transition-colors ${
+                showAoiBoundary ? 'text-teal-900 bg-teal-50' : 'text-slate-400 hover:bg-slate-100'
+              }`}
+              title="Toggle AOI Boundary"
+            >
+              <Maximize2 className="w-3 h-3" />
+            </button>
 
-                  <div className="bg-slate-50 p-2.5 rounded border border-slate-200">
-                    <span className="text-[11px] text-slate-500 block">Mean &Delta;NDBI</span>
-                    <span className="text-sm font-bold text-orange-700 mt-0.5 block font-mono">
-                      +{selectedCandidate.mean_delta_ndbi.toFixed(3)}
-                    </span>
-                    <span className="text-[10px] text-slate-500">Built-up index gain</span>
-                  </div>
-                </div>
+            {/* Basemap Switcher */}
+            <button
+              type="button"
+              onClick={handleToggleBaseMap}
+              className="flex items-center space-x-1 px-2 py-1 rounded text-[11px] text-slate-700 hover:bg-slate-100 transition-colors"
+              title="Toggle Satellite vs Street Basemap"
+            >
+              <Layers className="w-3 h-3 text-slate-500" />
+              <span className="hidden md:inline font-mono">{activeBaseLayer === 'satellite' ? 'Sat' : 'OSM'}</span>
+            </button>
+          </div>
+        </div>
 
-                {/* Scene Provenance Comparison */}
-                <div className="space-y-2 border-t border-slate-200 pt-3">
-                  <div className="text-[11px] font-semibold text-slate-600 uppercase tracking-wider">
-                    Scene Provenance
-                  </div>
-
-                  {/* Before Scene Box */}
-                  <div className="bg-slate-50 p-2 rounded border border-slate-200 text-[11px] space-y-1">
-                    <div className="flex items-center justify-between font-semibold text-emerald-800">
-                      <span>Before Scene</span>
-                      <span className="font-mono text-[10px] text-slate-500">{beforeScene.tile_id || 'N/A'}</span>
-                    </div>
-                    <div className="text-slate-600 truncate">
-                      ID: <span className="text-slate-900 font-mono">{beforeScene.id.slice(0, 24)}...</span>
-                    </div>
-                    <div className="flex items-center justify-between text-slate-600">
-                      <span>Acquisition:</span>
-                      <span className="text-slate-900 font-mono">{format(new Date(beforeScene.acquisition_date), 'yyyy-MM-dd')}</span>
-                    </div>
-                    <div className="flex items-center justify-between text-slate-600">
-                      <span>Cloud Cover:</span>
-                      <span className="text-slate-900">{beforeScene.cloud_cover.toFixed(1)}%</span>
-                    </div>
-                  </div>
-
-                  {/* After Scene Box */}
-                  <div className="bg-slate-50 p-2 rounded border border-slate-200 text-[11px] space-y-1">
-                    <div className="flex items-center justify-between font-semibold text-sky-800">
-                      <span>After Scene</span>
-                      <span className="font-mono text-[10px] text-slate-500">{afterScene.tile_id || 'N/A'}</span>
-                    </div>
-                    <div className="text-slate-600 truncate">
-                      ID: <span className="text-slate-900 font-mono">{afterScene.id.slice(0, 24)}...</span>
-                    </div>
-                    <div className="flex items-center justify-between text-slate-600">
-                      <span>Acquisition:</span>
-                      <span className="text-slate-900 font-mono">{format(new Date(afterScene.acquisition_date), 'yyyy-MM-dd')}</span>
-                    </div>
-                    <div className="flex items-center justify-between text-slate-600">
-                      <span>Cloud Cover:</span>
-                      <span className="text-slate-900">{afterScene.cloud_cover.toFixed(1)}%</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Mandated Scientific Note */}
-                <div className="bg-teal-50/60 border border-teal-200 rounded p-2.5">
-                  <div className="flex items-start space-x-2">
-                    <Info className="w-3.5 h-3.5 text-teal-800 shrink-0 mt-0.5" />
-                    <p className="text-[11px] text-slate-700 leading-relaxed italic">
-                      "This is a spectral change candidate derived from Sentinel-2 imagery, not a confirmed building footprint."
-                    </p>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="text-center py-8 space-y-2.5">
-                <div className="w-10 h-10 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center mx-auto text-slate-500">
-                  <Compass className="w-5 h-5 text-teal-800" />
-                </div>
-                <div>
-                  <h4 className="text-xs font-semibold text-slate-900">No Candidate Selected</h4>
-                  <p className="text-[11px] text-slate-500 max-w-[240px] mx-auto mt-0.5">
-                    Click any highlighted region on the map or select from candidates to inspect spectral metrics.
-                  </p>
-                </div>
-                {candidateList.length > 0 && (
-                  <div className="pt-1">
-                    <button
-                      type="button"
-                      onClick={() => onSelectCandidate && onSelectCandidate(candidateList[0].id)}
-                      className="px-3 py-1 rounded bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-300 text-xs font-medium transition-colors"
-                    >
-                      Inspect First Candidate &rarr;
-                    </button>
-                  </div>
-                )}
-              </div>
+        {/* 4. FLOATING MAP NAVIGATION TOOLS (Right side) */}
+        <div className="absolute top-3 right-3 z-30 flex flex-col gap-1.5 pointer-events-auto">
+          <div className="bg-white/95 backdrop-blur-md border border-slate-200/90 rounded p-1 shadow-md flex flex-col space-y-1">
+            <button
+              type="button"
+              onClick={handleZoomIn}
+              className="p-1.5 rounded hover:bg-slate-100 text-slate-700 transition-colors"
+              title="Zoom In"
+            >
+              <Plus className="w-3.5 h-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={handleZoomOut}
+              className="p-1.5 rounded hover:bg-slate-100 text-slate-700 transition-colors"
+              title="Zoom Out"
+            >
+              <Minus className="w-3.5 h-3.5" />
+            </button>
+            <div className="w-full h-px bg-slate-200" />
+            <button
+              type="button"
+              onClick={handleFitAoi}
+              className="p-1.5 rounded hover:bg-slate-100 text-slate-700 transition-colors"
+              title="Reset View to AOI"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+            </button>
+            {selectedCandidate && (
+              <button
+                type="button"
+                onClick={handleFitCandidate}
+                className="p-1.5 rounded bg-amber-50 text-amber-900 border border-amber-300 hover:bg-amber-100 transition-colors"
+                title="Focus Selected Candidate"
+              >
+                <Crosshair className="w-3.5 h-3.5 text-amber-700" />
+              </button>
             )}
           </div>
+        </div>
 
-          {/* Spatial Grid Verification Note */}
-          <div className="bg-white border border-slate-200 rounded-lg p-3 text-xs space-y-1.5 shadow-xs">
-            <div className="flex items-center space-x-2 text-slate-800 font-semibold">
-              <CheckCircle2 className="w-3.5 h-3.5 text-teal-700" />
-              <span>Spatial Alignment Metadata</span>
+        {/* 5. FLOATING SCENE LABELS ON MAP */}
+        {/* Before Scene Indicator (Left Edge) */}
+        <div className="absolute bottom-3 left-3 z-20 pointer-events-none">
+          <div className="bg-slate-900/90 backdrop-blur-xs text-white border border-slate-700/80 rounded px-2.5 py-1.5 shadow-md flex items-center space-x-2 text-xs font-mono">
+            <span className="w-2 h-2 rounded-full bg-emerald-500" />
+            <div>
+              <div className="text-[10px] text-slate-300 font-sans font-semibold">BEFORE BASELINE</div>
+              <div className="text-[11px] font-bold text-white">
+                {format(new Date(beforeScene.acquisition_date), 'yyyy-MM-dd')}
+              </div>
             </div>
-            <p className="text-[11px] text-slate-600 leading-relaxed">
-              Both scenes are clipped and projected onto the identical AOI bounding box grid 
-              <span className="font-mono text-slate-800 ml-1">
-                [{aoiBbox.map(n => n.toFixed(2)).join(', ')}]
-              </span>. Native Sentinel-2 10m/20m pixels are resampled to a consistent 10m Ground Sample Distance before differencing.
-            </p>
+          </div>
+        </div>
+
+        {/* After Scene Indicator (Right Edge) */}
+        <div className="absolute bottom-3 right-3 z-20 pointer-events-none">
+          <div className="bg-slate-900/90 backdrop-blur-xs text-white border border-slate-700/80 rounded px-2.5 py-1.5 shadow-md flex items-center space-x-2 text-xs font-mono text-right">
+            <div>
+              <div className="text-[10px] text-slate-300 font-sans font-semibold">AFTER MONITORING</div>
+              <div className="text-[11px] font-bold text-white">
+                {format(new Date(afterScene.acquisition_date), 'yyyy-MM-dd')}
+              </div>
+            </div>
+            <span className="w-2 h-2 rounded-full bg-sky-500" />
+          </div>
+        </div>
+
+        {/* Center Split Percentage Tag */}
+        <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
+          <div className="bg-white/90 backdrop-blur-xs text-slate-800 border border-slate-200 rounded px-2 py-0.5 text-[10px] font-mono shadow-2xs">
+            Split: {sliderPosition.toFixed(0)}% / {(100 - sliderPosition).toFixed(0)}%
           </div>
         </div>
       </div>

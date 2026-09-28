@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { Menu, X, Compass, Radio } from 'lucide-react';
 import Sidebar from '../components/Sidebar';
-import MapView from '../components/MapView';
 import Dashboard from '../pages/Dashboard';
 import SemanticSearch from '../pages/SemanticSearch';
 import ImageSearch from '../pages/ImageSearch';
@@ -16,10 +16,11 @@ import { HealthResponse } from '../types';
 type PageType = 'dashboard' | 'sentinel2-search' | 'semantic-search' | 'image-search' | 'change-analysis' | 'similar-locations' | 'review-queue' | 'data' | 'status';
 
 function App() {
-  const [currentPage, setCurrentPage] = useState<PageType>('sentinel2-search');
+  const [currentPage, setCurrentPage] = useState<PageType>('semantic-search');
   const [healthStatus, setHealthStatus] = useState<HealthResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isDemoMode, setIsDemoMode] = useState<boolean>(isExplicitDemoModeActive());
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     checkHealth();
@@ -63,79 +64,99 @@ function App() {
       case 'status':
         return <SystemStatus healthStatus={healthStatus} />;
       default:
-        return <Sentinel2Search />;
+        return <SemanticSearch />;
     }
   };
 
   const isUpstreamDown = !healthStatus?.cdse_connected || healthStatus?.data_mode === 'upstream_unavailable';
 
   return (
-    <div className="flex h-screen bg-slate-100 text-slate-800 antialiased font-sans">
+    <div className="flex h-screen bg-[#f8f9fa] text-slate-800 antialiased font-sans">
+      {/* 218px Compact Command Rail */}
       <Sidebar 
         currentPage={currentPage} 
         onPageChange={(page) => setCurrentPage(page as PageType)}
         healthStatus={healthStatus}
+        isOpen={mobileMenuOpen}
+        onCloseMobile={() => setMobileMenuOpen(false)}
       />
-      <main className="flex-1 flex flex-col overflow-hidden bg-slate-50">
-        <header className="bg-white border-b border-slate-200 px-6 py-3.5 shadow-xs shrink-0">
+
+      <main className="flex-1 flex flex-col overflow-hidden bg-[#f4f6f8] min-w-0">
+        {/* Compact Instrument Top Bar */}
+        <header className="bg-white border-b border-slate-200 px-4 py-2.5 shadow-2xs shrink-0 select-none">
           <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <div className="w-8 h-8 bg-teal-800 rounded flex items-center justify-center text-white shadow-xs">
-                <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
+            {/* Left: Mobile Toggle & Brand */}
+            <div className="flex items-center space-x-2.5 min-w-0">
+              <button
+                type="button"
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                className="p-1 rounded lg:hidden text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+                aria-label="Toggle navigation menu"
+              >
+                {mobileMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
+              </button>
+
+              <div className="w-6 h-6 bg-teal-800 rounded flex items-center justify-center text-white shadow-xs shrink-0 lg:hidden">
+                <Compass className="w-3.5 h-3.5" />
               </div>
-              <div>
-                <h1 className="text-base font-semibold text-slate-900 tracking-tight">TerraVektor &bull; Geospatial Intelligence</h1>
-                <p className="text-xs text-slate-500 font-mono">Sentinel-2 Surface Change & Semantic Retrieval Console</p>
+
+              <div className="min-w-0">
+                <h1 className="text-xs font-bold text-slate-900 tracking-tight flex items-center gap-1.5 truncate">
+                  <span>TERRAVEKTOR</span>
+                  <span className="text-slate-300 font-normal">&bull;</span>
+                  <span className="text-[11px] text-teal-800 font-mono font-medium truncate">Geospatial Investigation Cockpit</span>
+                </h1>
               </div>
             </div>
-            <div className="flex items-center space-x-3">
+
+            {/* Right: Upstream Status & Mode Toggles */}
+            <div className="flex items-center space-x-2.5 shrink-0 text-xs">
               {healthStatus && (
-                <div className="flex items-center space-x-1.5 text-xs text-slate-600 font-mono">
-                  <span className={`w-2 h-2 rounded-full ${
-                    healthStatus.status === 'healthy' && !isUpstreamDown ? 'bg-emerald-600' : 'bg-red-600'
+                <div className="hidden sm:flex items-center space-x-1.5 text-[11px] font-mono text-slate-600">
+                  <span className={`w-1.5 h-1.5 rounded-full ${
+                    healthStatus.status === 'healthy' && !isUpstreamDown ? 'bg-emerald-500' : 'bg-red-500'
                   }`} />
                   <span>
-                    {healthStatus.status === 'healthy' && !isUpstreamDown ? 'Services Online' : 'Copernicus Degraded'}
+                    {healthStatus.status === 'healthy' && !isUpstreamDown ? 'CDSE Live' : 'CDSE Degraded'}
                   </span>
                 </div>
               )}
 
               {/* Data Mode Indicator */}
               {isDemoMode || healthStatus?.data_mode === 'demo_data' ? (
-                <div className="flex items-center space-x-1.5 px-2.5 py-1 rounded text-xs font-mono font-medium bg-amber-50 text-amber-900 border border-amber-300">
+                <div className="flex items-center space-x-1 px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-50 text-amber-900 border border-amber-300">
                   <span className="w-1.5 h-1.5 rounded-full bg-amber-600" />
-                  <span>DEMO DATA</span>
+                  <span>DEMO MODE</span>
                 </div>
               ) : isUpstreamDown ? (
-                <div className="flex items-center space-x-1.5 px-2.5 py-1 rounded text-xs font-mono font-medium bg-rose-50 text-rose-900 border border-rose-300">
+                <div className="flex items-center space-x-1 px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-rose-50 text-rose-900 border border-rose-300">
                   <span className="w-1.5 h-1.5 rounded-full bg-rose-600" />
-                  <span>UPSTREAM UNAVAILABLE</span>
+                  <span>UPSTREAM OFFLINE</span>
                 </div>
               ) : (
-                <div className="flex items-center space-x-1.5 px-2.5 py-1 rounded text-xs font-mono font-medium bg-teal-50 text-teal-900 border border-teal-300">
-                  <span className="w-1.5 h-1.5 rounded-full bg-teal-700" />
+                <div className="flex items-center space-x-1 px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-teal-50 text-teal-900 border border-teal-300">
+                  <span className="w-1.5 h-1.5 rounded-full bg-teal-700 animate-pulse" />
                   <span>LIVE SENTINEL-2</span>
                 </div>
               )}
 
-              {/* Development Mode Toggle */}
+              {/* Mode Toggle Button */}
               <button
                 onClick={toggleDemoMode}
-                title={isDemoMode ? 'Switch back to Live Sentinel-2 queries' : 'Explicitly enable Development Demo Mode'}
-                className={`text-xs px-2.5 py-1 rounded border font-medium transition-colors ${
+                title={isDemoMode ? 'Switch to Live Copernicus CDSE queries' : 'Toggle Demo Mode for offline simulation'}
+                className={`text-[11px] px-2 py-0.5 rounded border font-medium transition-colors ${
                   isDemoMode 
                     ? 'bg-amber-100 text-amber-900 border-amber-300 hover:bg-amber-200'
                     : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
                 }`}
               >
-                {isDemoMode ? 'Exit Demo Mode' : 'Demo Mode'}
+                {isDemoMode ? 'Exit Demo' : 'Demo Mode'}
               </button>
             </div>
           </div>
         </header>
         
+        {/* Main Viewport */}
         <div className="flex-1 flex overflow-hidden">
           <div className="flex-1 overflow-auto">
             {renderPage()}
