@@ -439,31 +439,31 @@ export const SatelliteInvestigationMap: React.FC<SatelliteInvestigationMapProps>
   return (
     <div className="space-y-4">
       {/* Map Header Toolbar with Controls */}
-      <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-900/90 border border-slate-800 rounded-xl p-3.5 backdrop-blur-md">
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-white border border-slate-200 rounded-lg p-3 shadow-xs">
         {/* Left: Investigation Title & Spatial Alignment Verified */}
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center space-x-2">
-            <Sliders className="w-4 h-4 text-satellite-400" />
-            <span className="text-sm font-semibold text-white">Before / After Investigation</span>
+            <Sliders className="w-4 h-4 text-teal-700" />
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-900">Bi-Temporal Inspection</span>
           </div>
 
-          <div className="hidden sm:flex items-center space-x-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
-            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Spatially Aligned 10m Sentinel-2 Grid</span>
+          <div className="hidden sm:flex items-center space-x-1.5 px-2.5 py-1 rounded text-[11px] font-mono font-medium bg-teal-50 text-teal-800 border border-teal-200">
+            <CheckCircle2 className="w-3.5 h-3.5 text-teal-700" />
+            <span>Spatially Aligned 10m Grid</span>
           </div>
         </div>
 
         {/* Right: Interactive Map Controls */}
         <div className="flex flex-wrap items-center gap-2">
           {/* Slider Preset Buttons */}
-          <div className="flex items-center bg-slate-800 rounded-lg p-0.5 border border-slate-700 text-xs">
+          <div className="flex items-center bg-slate-100 rounded p-0.5 border border-slate-200 text-xs">
             <button
               type="button"
               onClick={() => setSliderPosition(100)}
-              className={`px-2.5 py-1 rounded-md transition-all ${
+              className={`px-2.5 py-1 rounded transition-colors ${
                 sliderPosition >= 98
-                  ? 'bg-satellite-500 text-white font-semibold'
-                  : 'text-slate-400 hover:text-white'
+                  ? 'bg-teal-800 text-white font-medium shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
               }`}
               title="View 100% Before Scene"
             >
@@ -472,10 +472,10 @@ export const SatelliteInvestigationMap: React.FC<SatelliteInvestigationMapProps>
             <button
               type="button"
               onClick={() => setSliderPosition(50)}
-              className={`px-2.5 py-1 rounded-md transition-all ${
+              className={`px-2.5 py-1 rounded transition-colors ${
                 sliderPosition > 2 && sliderPosition < 98
-                  ? 'bg-satellite-500 text-white font-semibold'
-                  : 'text-slate-400 hover:text-white'
+                  ? 'bg-teal-800 text-white font-medium shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
               }`}
               title="Split 50/50 comparison"
             >
@@ -484,10 +484,10 @@ export const SatelliteInvestigationMap: React.FC<SatelliteInvestigationMapProps>
             <button
               type="button"
               onClick={() => setSliderPosition(0)}
-              className={`px-2.5 py-1 rounded-md transition-all ${
+              className={`px-2.5 py-1 rounded transition-colors ${
                 sliderPosition <= 2
-                  ? 'bg-satellite-500 text-white font-semibold'
-                  : 'text-slate-400 hover:text-white'
+                  ? 'bg-teal-800 text-white font-medium shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
               }`}
               title="View 100% After Scene"
             >
@@ -495,34 +495,34 @@ export const SatelliteInvestigationMap: React.FC<SatelliteInvestigationMapProps>
             </button>
           </div>
 
-          {/* Toggle Change Overlay */}
+          {/* Toggle Change Overlay - Orange Classification */}
           <button
             type="button"
             onClick={() => setShowChangeOverlay(!showChangeOverlay)}
-            className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+            className={`flex items-center space-x-1.5 px-2.5 py-1 rounded text-xs font-medium border transition-colors ${
               showChangeOverlay
-                ? 'bg-orange-500/20 text-orange-300 border-orange-500/50 ring-1 ring-orange-500/40'
-                : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-white'
+                ? 'bg-orange-50 text-orange-900 border-orange-400 font-semibold'
+                : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
             }`}
             title="Toggle Built-up Change Mask Overlay"
           >
-            {showChangeOverlay ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+            {showChangeOverlay ? <Eye className="w-3.5 h-3.5 text-orange-600" /> : <EyeOff className="w-3.5 h-3.5" />}
             <span>Change Mask</span>
           </button>
 
-          {/* Toggle Candidates */}
+          {/* Toggle Candidates - Purple Classification */}
           {candidateList.length > 0 && (
             <button
               type="button"
               onClick={() => setShowCandidates(!showCandidates)}
-              className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+              className={`flex items-center space-x-1.5 px-2.5 py-1 rounded text-xs font-medium border transition-colors ${
                 showCandidates
-                  ? 'bg-purple-500/20 text-purple-300 border-purple-500/50 ring-1 ring-purple-500/40'
-                  : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-white'
+                  ? 'bg-purple-50 text-purple-900 border-purple-400 font-semibold'
+                  : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
               }`}
               title="Toggle Candidate Region Highlights"
             >
-              <Building2 className="w-3.5 h-3.5" />
+              <Building2 className="w-3.5 h-3.5 text-purple-600" />
               <span>Candidates ({candidateList.length})</span>
             </button>
           )}
@@ -531,10 +531,10 @@ export const SatelliteInvestigationMap: React.FC<SatelliteInvestigationMapProps>
           <button
             type="button"
             onClick={handleToggleBaseMap}
-            className="flex items-center space-x-1 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition-colors"
+            className="flex items-center space-x-1.5 px-2.5 py-1 rounded text-xs font-medium bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 transition-colors"
             title="Switch Satellite / Street Base Layer"
           >
-            <Layers className="w-3.5 h-3.5 text-satellite-400" />
+            <Layers className="w-3.5 h-3.5 text-slate-500" />
             <span>{activeBaseLayer === 'satellite' ? 'Satellite' : 'Street'}</span>
           </button>
 
@@ -542,10 +542,10 @@ export const SatelliteInvestigationMap: React.FC<SatelliteInvestigationMapProps>
           <button
             type="button"
             onClick={handleFitAoi}
-            className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition-colors"
+            className="p-1.5 rounded bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 transition-colors"
             title="Fit Entire AOI into view"
           >
-            <Maximize2 className="w-4 h-4" />
+            <Maximize2 className="w-3.5 h-3.5" />
           </button>
 
           {/* Fit Selected Candidate */}
@@ -553,7 +553,7 @@ export const SatelliteInvestigationMap: React.FC<SatelliteInvestigationMapProps>
             <button
               type="button"
               onClick={handleFitCandidate}
-              className="flex items-center space-x-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-amber-500/20 text-amber-300 border border-amber-500/40 hover:bg-amber-500/30 transition-colors"
+              className="flex items-center space-x-1 px-2.5 py-1 rounded text-xs font-semibold bg-amber-50 text-amber-900 border border-amber-300 hover:bg-amber-100 transition-colors"
               title="Zoom to selected candidate region"
             >
               <Crosshair className="w-3.5 h-3.5" />
@@ -563,13 +563,13 @@ export const SatelliteInvestigationMap: React.FC<SatelliteInvestigationMapProps>
         </div>
       </div>
 
-      {/* Main Investigation Section: Large Map (65-70%) + Evidence Panel (30-35%) */}
+      {/* Main Investigation Section: Large Map + Evidence Panel */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
-        {/* Map Container (7 or 8 columns on large screens) */}
+        {/* Map Container */}
         <div className="lg:col-span-8 relative">
           <div
             ref={sliderContainerRef}
-            className="relative w-full h-[580px] sm:h-[620px] rounded-xl overflow-hidden border border-ui-border shadow-2xl bg-slate-950 select-none cursor-grab active:cursor-grabbing"
+            className="relative w-full h-[580px] sm:h-[620px] rounded-lg overflow-hidden border border-slate-300 shadow-sm bg-slate-900 select-none cursor-grab active:cursor-grabbing"
           >
             {/* Underlying Leaflet Map */}
             <div ref={mapContainerRef} className="w-full h-full" />
@@ -580,31 +580,31 @@ export const SatelliteInvestigationMap: React.FC<SatelliteInvestigationMapProps>
               style={{ left: `${sliderPosition}%`, transform: 'translateX(-50%)' }}
             >
               {/* Divider Line */}
-              <div className="w-0.5 h-full bg-white shadow-[0_0_12px_rgba(255,255,255,0.8)] mx-auto" />
+              <div className="w-0.5 h-full bg-white shadow-[0_0_8px_rgba(0,0,0,0.5)] mx-auto" />
 
               {/* Slider Handle Pill in Center */}
               <div
                 onMouseDown={handleMouseDown}
                 onTouchStart={handleTouchStart}
-                className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-auto cursor-ew-resize w-10 h-10 rounded-full bg-slate-900 border-2 border-white shadow-[0_4px_20px_rgba(0,0,0,0.8)] flex items-center justify-center text-white hover:scale-110 active:scale-95 transition-transform"
+                className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-auto cursor-ew-resize w-9 h-9 rounded-full bg-white border-2 border-slate-700 shadow-md flex items-center justify-center text-slate-800 hover:scale-105 active:scale-95 transition-transform"
                 title="Drag horizontally to compare Before & After scenes"
               >
-                <Sliders className="w-4 h-4 text-satellite-400 rotate-90" />
+                <Sliders className="w-3.5 h-3.5 text-teal-800 rotate-90" />
               </div>
             </div>
 
             {/* Scene Header Badges inside Map View */}
             {/* Before Scene (Top Left) */}
             <div className="absolute top-3 left-3 z-20 pointer-events-none">
-              <div className="bg-slate-900/90 backdrop-blur-md border border-slate-700/80 rounded-lg px-3 py-1.5 shadow-lg flex items-center space-x-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400" />
+              <div className="bg-white/95 backdrop-blur-sm border border-slate-300 rounded px-2.5 py-1.5 shadow-md flex items-center space-x-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-600" />
                 <div>
-                  <div className="text-[11px] font-bold text-white tracking-wide flex items-center gap-1.5">
+                  <div className="text-[11px] font-bold text-slate-900 tracking-wide flex items-center gap-1.5">
                     <span>BEFORE</span>
-                    <span className="text-[10px] font-normal text-slate-400">Baseline</span>
+                    <span className="text-[10px] font-normal text-slate-500 font-mono">Baseline</span>
                   </div>
-                  <div className="text-[10px] text-slate-300 font-mono">
-                    {format(new Date(beforeScene.acquisition_date), 'MMM dd, yyyy')} &bull; Tile {beforeScene.tile_id || 'N/A'}
+                  <div className="text-[10px] text-slate-600 font-mono">
+                    {format(new Date(beforeScene.acquisition_date), 'yyyy-MM-dd')} &bull; Tile {beforeScene.tile_id || 'N/A'}
                   </div>
                 </div>
               </div>
@@ -612,47 +612,47 @@ export const SatelliteInvestigationMap: React.FC<SatelliteInvestigationMapProps>
 
             {/* After Scene (Top Right) */}
             <div className="absolute top-3 right-3 z-20 pointer-events-none">
-              <div className="bg-slate-900/90 backdrop-blur-md border border-slate-700/80 rounded-lg px-3 py-1.5 shadow-lg flex items-center space-x-2">
+              <div className="bg-white/95 backdrop-blur-sm border border-slate-300 rounded px-2.5 py-1.5 shadow-md flex items-center space-x-2">
                 <div>
-                  <div className="text-[11px] font-bold text-white tracking-wide text-right flex items-center justify-end gap-1.5">
-                    <span className="text-[10px] font-normal text-slate-400">Monitoring</span>
+                  <div className="text-[11px] font-bold text-slate-900 tracking-wide text-right flex items-center justify-end gap-1.5">
+                    <span className="text-[10px] font-normal text-slate-500 font-mono">Monitoring</span>
                     <span>AFTER</span>
                   </div>
-                  <div className="text-[10px] text-slate-300 font-mono text-right">
-                    {format(new Date(afterScene.acquisition_date), 'MMM dd, yyyy')} &bull; Tile {afterScene.tile_id || 'N/A'}
+                  <div className="text-[10px] text-slate-600 font-mono text-right">
+                    {format(new Date(afterScene.acquisition_date), 'yyyy-MM-dd')} &bull; Tile {afterScene.tile_id || 'N/A'}
                   </div>
                 </div>
-                <span className="w-2.5 h-2.5 rounded-full bg-sky-400" />
+                <span className="w-2.5 h-2.5 rounded-full bg-sky-600" />
               </div>
             </div>
 
             {/* Map Legend Overlay (Bottom Left) */}
             <div className="absolute bottom-3 left-3 z-20 pointer-events-none">
-              <div className="bg-slate-900/90 backdrop-blur-md border border-slate-800 rounded-lg p-2.5 shadow-xl text-xs space-y-1.5 min-w-[200px]">
-                <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-800 pb-1">
-                  Investigation Legend
+              <div className="bg-white/95 backdrop-blur-sm border border-slate-300 rounded p-2.5 shadow-md text-xs space-y-1.5 min-w-[210px]">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-slate-600 border-b border-slate-200 pb-1">
+                  Investigation Key
                 </div>
-                <div className="flex items-center space-x-2">
-                  <span className="text-[10px] text-emerald-400 font-bold">◀ Left</span>
-                  <span className="text-[11px] text-slate-300">Before Scene ({format(new Date(beforeScene.acquisition_date), 'yyyy-MM-dd')})</span>
+                <div className="flex items-center space-x-2 text-[11px] text-slate-700 font-mono">
+                  <span className="text-emerald-700 font-bold">◀ Before</span>
+                  <span>{format(new Date(beforeScene.acquisition_date), 'yyyy-MM-dd')}</span>
                 </div>
-                <div className="flex items-center space-x-2">
-                  <span className="text-[10px] text-sky-400 font-bold">Right ▶</span>
-                  <span className="text-[11px] text-slate-300">After Scene ({format(new Date(afterScene.acquisition_date), 'yyyy-MM-dd')})</span>
+                <div className="flex items-center space-x-2 text-[11px] text-slate-700 font-mono">
+                  <span className="text-sky-700 font-bold">After ▶</span>
+                  <span>{format(new Date(afterScene.acquisition_date), 'yyyy-MM-dd')}</span>
                 </div>
 
-                <div className="pt-1 border-t border-slate-800 space-y-1">
-                  <div className="text-[10px] font-semibold text-slate-400">Change Candidates:</div>
+                <div className="pt-1.5 border-t border-slate-200 space-y-1 text-[11px]">
+                  <div className="text-[10px] font-semibold text-slate-600 uppercase">Change Classifications:</div>
                   <div className="flex items-center space-x-2">
-                    <span className="w-3 h-3 rounded-sm bg-orange-500/80 border border-orange-300" />
-                    <span className="text-[11px] text-orange-200">🟧 New Construction Candidate</span>
+                    <span className="w-3 h-3 rounded-xs bg-[#ea580c] border border-orange-700" />
+                    <span className="text-slate-800 font-medium">New Construction Candidate</span>
                   </div>
                   <div className="flex items-center space-x-2">
-                    <span className="w-3 h-3 rounded-sm bg-purple-500/80 border border-purple-300" />
-                    <span className="text-[11px] text-purple-200">🟪 Building Expansion Candidate</span>
+                    <span className="w-3 h-3 rounded-xs bg-[#7e22ce] border border-purple-700" />
+                    <span className="text-slate-800 font-medium">Building Expansion Candidate</span>
                   </div>
-                  <div className="text-[9px] text-slate-400 italic">
-                    Spectral change candidates derived from Sentinel-2
+                  <div className="text-[10px] text-slate-500 italic pt-0.5">
+                    10m Sentinel-2 multi-spectral differencing
                   </div>
                 </div>
               </div>
@@ -660,26 +660,26 @@ export const SatelliteInvestigationMap: React.FC<SatelliteInvestigationMapProps>
 
             {/* Bottom Slider Position Guide */}
             <div className="absolute bottom-3 right-3 z-20 pointer-events-none">
-              <div className="bg-slate-900/85 backdrop-blur-md border border-slate-700/60 rounded-md px-2.5 py-1 text-[11px] font-mono text-slate-300 shadow-md">
-                Split: {sliderPosition.toFixed(0)}% Before / {(100 - sliderPosition).toFixed(0)}% After
+              <div className="bg-white/95 backdrop-blur-sm border border-slate-300 rounded px-2 py-0.5 text-[11px] font-mono text-slate-700 shadow-xs">
+                Split: {sliderPosition.toFixed(0)}% / {(100 - sliderPosition).toFixed(0)}%
               </div>
             </div>
           </div>
         </div>
 
-        {/* Candidate Evidence Panel (4 columns on large screens) */}
+        {/* Candidate Evidence Panel */}
         <div className="lg:col-span-4 space-y-4">
-          <div className="bg-ui-dark border border-ui-border rounded-xl p-5 shadow-xl space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <h3 className="text-sm font-semibold text-white flex items-center space-x-2">
-                <Compass className="w-4 h-4 text-satellite-400" />
-                <span>Candidate Evidence Panel</span>
+          <div className="bg-white border border-slate-200 rounded-lg p-4 shadow-xs space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-2.5">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900 flex items-center space-x-2">
+                <Compass className="w-3.5 h-3.5 text-teal-800" />
+                <span>Candidate Evidence</span>
               </h3>
               {selectedCandidate && (
                 <button
                   type="button"
                   onClick={() => onSelectCandidate && onSelectCandidate(null)}
-                  className="text-[11px] text-slate-400 hover:text-white"
+                  className="text-[11px] text-slate-500 hover:text-slate-900"
                 >
                   Clear Selection
                 </button>
@@ -687,27 +687,27 @@ export const SatelliteInvestigationMap: React.FC<SatelliteInvestigationMapProps>
             </div>
 
             {selectedCandidate ? (
-              <div className="space-y-4">
-                {/* Candidate Badge */}
+              <div className="space-y-3.5">
+                {/* Candidate Classification Banner */}
                 <div
-                  className={`p-3.5 rounded-lg border flex items-start space-x-3 ${
+                  className={`p-3 rounded border flex items-start space-x-2.5 ${
                     selectedCandidate.type === 'new_construction_candidate'
-                      ? 'bg-orange-500/10 border-orange-500/30 text-orange-300'
-                      : 'bg-purple-500/10 border-purple-500/30 text-purple-300'
+                      ? 'bg-orange-50 border-orange-300 text-orange-900'
+                      : 'bg-purple-50 border-purple-300 text-purple-900'
                   }`}
                 >
                   {selectedCandidate.type === 'new_construction_candidate' ? (
-                    <Construction className="w-5 h-5 text-orange-400 shrink-0 mt-0.5" />
+                    <Construction className="w-4 h-4 text-orange-600 shrink-0 mt-0.5" />
                   ) : (
-                    <Building2 className="w-5 h-5 text-purple-400 shrink-0 mt-0.5" />
+                    <Building2 className="w-4 h-4 text-purple-600 shrink-0 mt-0.5" />
                   )}
                   <div>
-                    <div className="text-xs font-bold uppercase tracking-wider text-white">
+                    <div className="text-xs font-bold uppercase tracking-wide">
                       {selectedCandidate.type === 'new_construction_candidate'
                         ? 'New Construction Candidate'
                         : 'Building Expansion Candidate'}
                     </div>
-                    <div className="text-[11px] text-slate-400 font-mono mt-0.5">
+                    <div className="text-[11px] font-mono text-slate-600 mt-0.5">
                       ID: {selectedCandidate.id}
                     </div>
                   </div>
@@ -715,113 +715,113 @@ export const SatelliteInvestigationMap: React.FC<SatelliteInvestigationMapProps>
 
                 {/* Spectral Metrics Grid */}
                 <div className="grid grid-cols-2 gap-2 text-xs">
-                  <div className="bg-slate-900/70 p-2.5 rounded-lg border border-slate-800">
-                    <span className="text-[11px] text-slate-400 block">Area</span>
-                    <span className="text-sm font-bold text-white mt-0.5 block">
+                  <div className="bg-slate-50 p-2.5 rounded border border-slate-200">
+                    <span className="text-[11px] text-slate-500 block">Candidate Area</span>
+                    <span className="text-sm font-bold text-slate-900 mt-0.5 block font-mono">
                       {selectedCandidate.area_m2.toLocaleString()} m²
                     </span>
-                    <span className="text-[10px] text-slate-400">
+                    <span className="text-[10px] text-slate-500">
                       ({(selectedCandidate.area_m2 / 10000).toFixed(2)} ha)
                     </span>
                   </div>
 
-                  <div className="bg-slate-900/70 p-2.5 rounded-lg border border-slate-800">
-                    <span className="text-[11px] text-slate-400 block">Pixel Count</span>
-                    <span className="text-sm font-bold text-white mt-0.5 block">
+                  <div className="bg-slate-50 p-2.5 rounded border border-slate-200">
+                    <span className="text-[11px] text-slate-500 block">Pixel Count</span>
+                    <span className="text-sm font-bold text-slate-900 mt-0.5 block font-mono">
                       {selectedCandidate.pixel_count.toLocaleString()}
                     </span>
-                    <span className="text-[10px] text-slate-400">at 10m resolution</span>
+                    <span className="text-[10px] text-slate-500">at 10m GSD</span>
                   </div>
 
-                  <div className="bg-slate-900/70 p-2.5 rounded-lg border border-slate-800">
-                    <span className="text-[11px] text-slate-400 block">Mean ΔNDVI</span>
-                    <span className="text-sm font-bold text-emerald-400 mt-0.5 block font-mono">
+                  <div className="bg-slate-50 p-2.5 rounded border border-slate-200">
+                    <span className="text-[11px] text-slate-500 block">Mean &Delta;NDVI</span>
+                    <span className="text-sm font-bold text-emerald-700 mt-0.5 block font-mono">
                       {selectedCandidate.mean_delta_ndvi.toFixed(3)}
                     </span>
-                    <span className="text-[10px] text-emerald-300/80">Vegetation loss</span>
+                    <span className="text-[10px] text-slate-500">Vegetation loss</span>
                   </div>
 
-                  <div className="bg-slate-900/70 p-2.5 rounded-lg border border-slate-800">
-                    <span className="text-[11px] text-slate-400 block">Mean ΔNDBI</span>
-                    <span className="text-sm font-bold text-amber-400 mt-0.5 block font-mono">
+                  <div className="bg-slate-50 p-2.5 rounded border border-slate-200">
+                    <span className="text-[11px] text-slate-500 block">Mean &Delta;NDBI</span>
+                    <span className="text-sm font-bold text-orange-700 mt-0.5 block font-mono">
                       +{selectedCandidate.mean_delta_ndbi.toFixed(3)}
                     </span>
-                    <span className="text-[10px] text-amber-300/80">Built-up index increase</span>
+                    <span className="text-[10px] text-slate-500">Built-up index gain</span>
                   </div>
                 </div>
 
                 {/* Scene Provenance Comparison */}
-                <div className="space-y-2 border-t border-slate-800/80 pt-3">
-                  <div className="text-[11px] font-semibold text-slate-300 uppercase tracking-wider">
+                <div className="space-y-2 border-t border-slate-200 pt-3">
+                  <div className="text-[11px] font-semibold text-slate-600 uppercase tracking-wider">
                     Scene Provenance
                   </div>
 
                   {/* Before Scene Box */}
-                  <div className="bg-slate-900/50 p-2.5 rounded-lg border border-slate-800 text-[11px] space-y-1">
-                    <div className="flex items-center justify-between font-semibold text-emerald-300">
+                  <div className="bg-slate-50 p-2 rounded border border-slate-200 text-[11px] space-y-1">
+                    <div className="flex items-center justify-between font-semibold text-emerald-800">
                       <span>Before Scene</span>
-                      <span className="font-mono text-[10px] text-slate-400">{beforeScene.tile_id || 'N/A'}</span>
+                      <span className="font-mono text-[10px] text-slate-500">{beforeScene.tile_id || 'N/A'}</span>
                     </div>
-                    <div className="text-slate-400 truncate">
-                      ID: <span className="text-white font-mono">{beforeScene.id.slice(0, 24)}...</span>
+                    <div className="text-slate-600 truncate">
+                      ID: <span className="text-slate-900 font-mono">{beforeScene.id.slice(0, 24)}...</span>
                     </div>
-                    <div className="flex items-center justify-between text-slate-400">
+                    <div className="flex items-center justify-between text-slate-600">
                       <span>Acquisition:</span>
-                      <span className="text-white font-mono">{format(new Date(beforeScene.acquisition_date), 'yyyy-MM-dd')}</span>
+                      <span className="text-slate-900 font-mono">{format(new Date(beforeScene.acquisition_date), 'yyyy-MM-dd')}</span>
                     </div>
-                    <div className="flex items-center justify-between text-slate-400">
+                    <div className="flex items-center justify-between text-slate-600">
                       <span>Cloud Cover:</span>
-                      <span className="text-white">{beforeScene.cloud_cover.toFixed(1)}%</span>
+                      <span className="text-slate-900">{beforeScene.cloud_cover.toFixed(1)}%</span>
                     </div>
                   </div>
 
                   {/* After Scene Box */}
-                  <div className="bg-slate-900/50 p-2.5 rounded-lg border border-slate-800 text-[11px] space-y-1">
-                    <div className="flex items-center justify-between font-semibold text-sky-300">
+                  <div className="bg-slate-50 p-2 rounded border border-slate-200 text-[11px] space-y-1">
+                    <div className="flex items-center justify-between font-semibold text-sky-800">
                       <span>After Scene</span>
-                      <span className="font-mono text-[10px] text-slate-400">{afterScene.tile_id || 'N/A'}</span>
+                      <span className="font-mono text-[10px] text-slate-500">{afterScene.tile_id || 'N/A'}</span>
                     </div>
-                    <div className="text-slate-400 truncate">
-                      ID: <span className="text-white font-mono">{afterScene.id.slice(0, 24)}...</span>
+                    <div className="text-slate-600 truncate">
+                      ID: <span className="text-slate-900 font-mono">{afterScene.id.slice(0, 24)}...</span>
                     </div>
-                    <div className="flex items-center justify-between text-slate-400">
+                    <div className="flex items-center justify-between text-slate-600">
                       <span>Acquisition:</span>
-                      <span className="text-white font-mono">{format(new Date(afterScene.acquisition_date), 'yyyy-MM-dd')}</span>
+                      <span className="text-slate-900 font-mono">{format(new Date(afterScene.acquisition_date), 'yyyy-MM-dd')}</span>
                     </div>
-                    <div className="flex items-center justify-between text-slate-400">
+                    <div className="flex items-center justify-between text-slate-600">
                       <span>Cloud Cover:</span>
-                      <span className="text-white">{afterScene.cloud_cover.toFixed(1)}%</span>
+                      <span className="text-slate-900">{afterScene.cloud_cover.toFixed(1)}%</span>
                     </div>
                   </div>
                 </div>
 
                 {/* Mandated Scientific Note */}
-                <div className="bg-slate-950/80 border border-slate-800 rounded-lg p-3">
+                <div className="bg-teal-50/60 border border-teal-200 rounded p-2.5">
                   <div className="flex items-start space-x-2">
-                    <Info className="w-4 h-4 text-sky-400 shrink-0 mt-0.5" />
-                    <p className="text-[11px] text-slate-300 leading-relaxed italic">
+                    <Info className="w-3.5 h-3.5 text-teal-800 shrink-0 mt-0.5" />
+                    <p className="text-[11px] text-slate-700 leading-relaxed italic">
                       "This is a spectral change candidate derived from Sentinel-2 imagery, not a confirmed building footprint."
                     </p>
                   </div>
                 </div>
               </div>
             ) : (
-              <div className="text-center py-8 space-y-3">
-                <div className="w-12 h-12 rounded-full bg-slate-800/80 border border-slate-700 flex items-center justify-center mx-auto text-satellite-400">
-                  <Compass className="w-6 h-6" />
+              <div className="text-center py-8 space-y-2.5">
+                <div className="w-10 h-10 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center mx-auto text-slate-500">
+                  <Compass className="w-5 h-5 text-teal-800" />
                 </div>
                 <div>
-                  <h4 className="text-xs font-semibold text-white">No Candidate Selected</h4>
-                  <p className="text-[11px] text-slate-400 max-w-[240px] mx-auto mt-1">
-                    Click any highlighted region on the map or select from the candidate list below to inspect spectral evidence.
+                  <h4 className="text-xs font-semibold text-slate-900">No Candidate Selected</h4>
+                  <p className="text-[11px] text-slate-500 max-w-[240px] mx-auto mt-0.5">
+                    Click any highlighted region on the map or select from candidates to inspect spectral metrics.
                   </p>
                 </div>
                 {candidateList.length > 0 && (
-                  <div className="pt-2">
+                  <div className="pt-1">
                     <button
                       type="button"
                       onClick={() => onSelectCandidate && onSelectCandidate(candidateList[0].id)}
-                      className="px-3 py-1.5 rounded-lg bg-satellite-500/20 hover:bg-satellite-500/30 text-satellite-300 border border-satellite-500/40 text-xs font-medium transition-all"
+                      className="px-3 py-1 rounded bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-300 text-xs font-medium transition-colors"
                     >
                       Inspect First Candidate &rarr;
                     </button>
@@ -832,14 +832,14 @@ export const SatelliteInvestigationMap: React.FC<SatelliteInvestigationMapProps>
           </div>
 
           {/* Spatial Grid Verification Note */}
-          <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4 text-xs space-y-2">
-            <div className="flex items-center space-x-2 text-slate-300 font-semibold">
-              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+          <div className="bg-white border border-slate-200 rounded-lg p-3 text-xs space-y-1.5 shadow-xs">
+            <div className="flex items-center space-x-2 text-slate-800 font-semibold">
+              <CheckCircle2 className="w-3.5 h-3.5 text-teal-700" />
               <span>Spatial Alignment Metadata</span>
             </div>
-            <p className="text-[11px] text-slate-400 leading-relaxed">
+            <p className="text-[11px] text-slate-600 leading-relaxed">
               Both scenes are clipped and projected onto the identical AOI bounding box grid 
-              <span className="font-mono text-slate-300 ml-1">
+              <span className="font-mono text-slate-800 ml-1">
                 [{aoiBbox.map(n => n.toFixed(2)).join(', ')}]
               </span>. Native Sentinel-2 10m/20m pixels are resampled to a consistent 10m Ground Sample Distance before differencing.
             </p>

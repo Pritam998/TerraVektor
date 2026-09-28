@@ -58,12 +58,12 @@ export const SimilarLocations: React.FC = () => {
   return (
     <div className="p-6 space-y-6 max-w-7xl mx-auto">
       <div>
-        <div className="flex items-center space-x-2 text-xs font-semibold text-satellite-400 uppercase tracking-wider mb-1">
+        <div className="flex items-center space-x-2 text-xs font-semibold text-teal-800 uppercase tracking-wider mb-1 font-mono">
           <MapPin className="w-3.5 h-3.5" />
           <span>Spatial & Morphological Similarity</span>
         </div>
-        <h1 className="text-2xl font-bold text-white">Find Similar Geographic Sites</h1>
-        <p className="text-sm text-slate-400">
+        <h1 className="text-xl font-bold text-slate-900 tracking-tight">Find Similar Geographic Sites</h1>
+        <p className="text-xs text-slate-600 mt-0.5">
           Discover geographic regions across the subcontinent sharing similar environmental, developmental, and spectral patterns.
         </p>
       </div>
@@ -71,15 +71,15 @@ export const SimilarLocations: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Selector & List */}
         <div className="lg:col-span-5 space-y-4">
-          <div className="bg-ui-dark border border-ui-border rounded-xl p-5 space-y-3">
-            <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider block">
+          <div className="bg-white border border-slate-200 rounded-lg p-5 space-y-3 shadow-xs">
+            <label className="text-xs font-bold uppercase tracking-wider text-slate-700 block">
               Choose Reference Anchor Site
             </label>
             <select
               value={selectedSceneId || ''}
               onChange={(e) => setSelectedSceneId(Number(e.target.value))}
               aria-label="Reference Anchor Site"
-              className="w-full bg-slate-900 border border-slate-700 text-white text-xs rounded-lg p-3 focus:outline-none focus:border-satellite-500"
+              className="w-full bg-white border border-slate-300 text-slate-800 text-xs rounded-lg p-2.5 focus:outline-none focus:border-teal-700"
             >
               {scenes.map(s => (
                 <option key={s.id} value={s.id}>
@@ -88,39 +88,39 @@ export const SimilarLocations: React.FC = () => {
               ))}
             </select>
             {referenceScene && (
-              <div className="p-3 bg-slate-900/60 rounded-lg border border-slate-800 text-xs text-slate-400 space-y-1">
-                <div className="text-white font-medium">{referenceScene.scene_name}</div>
+              <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 text-xs text-slate-600 space-y-1">
+                <div className="text-slate-900 font-semibold">{referenceScene.scene_name}</div>
                 <div>Sensor: {referenceScene.sensor} • Resolution: {referenceScene.resolution}m</div>
-                <div>Coordinates: {referenceScene.latitude.toFixed(4)}, {referenceScene.longitude.toFixed(4)}</div>
+                <div className="font-mono text-slate-700">Coords: {referenceScene.latitude.toFixed(4)}, {referenceScene.longitude.toFixed(4)}</div>
               </div>
             )}
           </div>
 
           {/* Similar Sites List */}
-          <div className="space-y-3">
-            <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+          <div className="space-y-2.5">
+            <div className="text-xs font-bold uppercase tracking-wider text-slate-700">
               Top Morphological Matches
             </div>
             {similarScenes.map((s) => (
               <div 
                 key={s.id}
-                className="p-4 bg-ui-dark border border-ui-border rounded-xl hover:border-slate-600 transition-all flex items-center justify-between"
+                className="p-3.5 bg-white border border-slate-200 rounded-lg hover:border-slate-300 transition-all flex items-center justify-between shadow-xs"
               >
                 <div className="space-y-1">
                   <div className="flex items-center space-x-2">
-                    <span className="text-xs font-semibold text-white truncate max-w-[200px]">
+                    <span className="text-xs font-semibold text-slate-900 truncate max-w-[200px]">
                       {s.scene_name}
                     </span>
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-medium">
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200">
                       {(s.similarity * 100).toFixed(0)}% Match
                     </span>
                   </div>
-                  <div className="text-[11px] text-slate-400">
+                  <div className="text-[11px] text-slate-600 font-mono">
                     Lat: {s.latitude.toFixed(4)}, Lon: {s.longitude.toFixed(4)} • {s.sensor}
                   </div>
                 </div>
 
-                <div className="text-xs text-slate-400">
+                <div className="text-xs text-slate-500 font-mono">
                   {s.cloud_percentage}% cloud
                 </div>
               </div>
@@ -129,12 +129,12 @@ export const SimilarLocations: React.FC = () => {
         </div>
 
         {/* Map View */}
-        <div className="lg:col-span-7 bg-ui-dark border border-ui-border rounded-xl p-5 flex flex-col">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-base font-semibold text-white">Geographic Correlation Map</h2>
-            <span className="text-xs text-slate-400">Interactive OpenStreetMap Vector View</span>
+        <div className="lg:col-span-7 bg-white border border-slate-200 rounded-lg p-5 flex flex-col shadow-xs">
+          <div className="flex items-center justify-between mb-3 border-b border-slate-200 pb-2.5">
+            <h2 className="text-xs font-bold uppercase tracking-wider text-slate-800">Geographic Correlation Map</h2>
+            <span className="text-[11px] font-mono text-slate-500">OpenStreetMap Vector</span>
           </div>
-          <div className="h-96 w-full rounded-lg overflow-hidden border border-slate-800">
+          <div className="h-96 w-full rounded-lg overflow-hidden border border-slate-300 shadow-xs">
             <MapView 
               center={referenceScene ? [referenceScene.longitude, referenceScene.latitude] : [77.2, 20.5]} 
               zoom={5} 

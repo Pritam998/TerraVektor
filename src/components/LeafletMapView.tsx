@@ -244,41 +244,41 @@ export const LeafletMapView: React.FC<LeafletMapViewProps> = ({
 
       if (latLngs.length > 0) {
         const polygon = L.polygon(latLngs, {
-          color: isSelected ? '#38bdf8' : '#0284c7', // Sky-400 vs Sky-600
-          weight: isSelected ? 3.5 : 1.8,
-          fillColor: isSelected ? '#38bdf8' : '#0ea5e9',
-          fillOpacity: isSelected ? 0.35 : 0.15,
+          color: isSelected ? '#0d9488' : '#0f766e',
+          weight: isSelected ? 3 : 1.5,
+          fillColor: '#0f766e',
+          fillOpacity: isSelected ? 0.3 : 0.12,
           className: 'sentinel2-footprint-poly'
         });
 
         // Popup content
-        const cloudColor = prod.cloud_cover < 10 ? '#22c55e' : prod.cloud_cover < 30 ? '#eab308' : '#ef4444';
+        const cloudColor = prod.cloud_cover < 10 ? '#15803d' : prod.cloud_cover < 30 ? '#b45309' : '#b91c1c';
         const formattedDate = prod.acquisition_date ? format(new Date(prod.acquisition_date), 'MMM dd, yyyy HH:mm') : 'Unknown';
 
         const modeBadgeHtml =
           prod.data_mode === 'live_copernicus'
-            ? `<span style="font-size: 10px; font-weight: 700; color: #4ade80; background: rgba(74,222,128,0.15); border: 1px solid rgba(74,222,128,0.3); padding: 1px 6px; border-radius: 4px;">● LIVE CDSE</span>`
+            ? `<span style="font-size: 10px; font-weight: 700; color: #166534; background: #dcfce7; border: 1px solid #bbf7d0; padding: 1px 6px; border-radius: 4px;">● LIVE CDSE</span>`
             : prod.data_mode === 'cached'
-            ? `<span style="font-size: 10px; font-weight: 700; color: #facc15; background: rgba(250,204,21,0.15); border: 1px solid rgba(250,204,21,0.3); padding: 1px 6px; border-radius: 4px;">● CACHED</span>`
-            : `<span style="font-size: 10px; font-weight: 700; color: #fbbf24; background: rgba(251,191,36,0.15); border: 1px solid rgba(251,191,36,0.3); padding: 1px 6px; border-radius: 4px;">● DEMO</span>`;
+            ? `<span style="font-size: 10px; font-weight: 700; color: #854d0e; background: #fef9c3; border: 1px solid #fef08a; padding: 1px 6px; border-radius: 4px;">● CACHED</span>`
+            : `<span style="font-size: 10px; font-weight: 700; color: #92400e; background: #fef3c7; border: 1px solid #fde68a; padding: 1px 6px; border-radius: 4px;">● DEMO</span>`;
 
         const popupHtml = `
-          <div style="min-width: 250px; font-family: system-ui, sans-serif; color: #f8fafc; padding: 4px;">
+          <div style="min-width: 250px; font-family: system-ui, sans-serif; color: #0f172a; padding: 4px;">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 6px; gap: 6px;">
               <div style="display:flex; align-items:center; gap: 4px;">
-                <span style="font-size: 11px; font-weight: 700; color: #38bdf8; background: rgba(56,189,248,0.15); padding: 2px 6px; border-radius: 4px;">${prod.product_type}</span>
+                <span style="font-size: 11px; font-weight: 700; color: #0f766e; background: #f0fdfa; border: 1px solid #ccfbf1; padding: 2px 6px; border-radius: 4px;">${prod.product_type}</span>
                 ${modeBadgeHtml}
               </div>
-              <span style="font-size: 11px; font-weight: 600; color: ${cloudColor}; background: rgba(255,255,255,0.06); padding: 2px 6px; border-radius: 4px;">☁️ ${prod.cloud_cover}% Cloud</span>
+              <span style="font-size: 11px; font-weight: 600; color: ${cloudColor}; background: #f8fafc; border: 1px solid #e2e8f0; padding: 2px 6px; border-radius: 4px;">☁️ ${prod.cloud_cover}% Cloud</span>
             </div>
-            <div style="font-size: 12px; font-weight: 600; color: #ffffff; margin-bottom: 4px; word-break: break-all; line-height: 1.3;">
+            <div style="font-size: 12px; font-weight: 600; color: #0f172a; margin-bottom: 4px; word-break: break-all; line-height: 1.3;">
               ${prod.name}
             </div>
-            <div style="font-size: 11px; color: #94a3b8; margin-bottom: 8px;">
+            <div style="font-size: 11px; color: #64748b; margin-bottom: 8px;">
               📅 ${formattedDate} UTC &bull; ${prod.platform} &bull; Tile: ${prod.tile_id || 'N/A'}
             </div>
-            <div style="display:flex; gap: 8px; margin-top: 8px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 8px;">
-              <a href="${prod.cdse_browser_url}" target="_blank" rel="noopener noreferrer" style="flex: 1; text-align: center; background: #0284c7; color: white; padding: 4px 8px; border-radius: 4px; text-decoration: none; font-size: 11px; font-weight: 500;">
+            <div style="display:flex; gap: 8px; margin-top: 8px; border-top: 1px solid #e2e8f0; padding-top: 8px;">
+              <a href="${prod.cdse_browser_url}" target="_blank" rel="noopener noreferrer" style="flex: 1; text-align: center; background: #0f766e; color: white; padding: 4px 8px; border-radius: 4px; text-decoration: none; font-size: 11px; font-weight: 500;">
                 Open in CDSE Browser &rarr;
               </a>
             </div>
@@ -358,22 +358,22 @@ export const LeafletMapView: React.FC<LeafletMapViewProps> = ({
   }, [aoiBbox, products]);
 
   return (
-    <div className="relative w-full h-full min-h-[460px] rounded-xl overflow-hidden border border-ui-border shadow-lg">
-      <div ref={mapContainerRef} className="w-full h-full min-h-[460px] bg-slate-900 z-0" />
+    <div className="relative w-full h-full min-h-[460px] rounded-lg overflow-hidden border border-slate-300 shadow-xs">
+      <div ref={mapContainerRef} className="w-full h-full min-h-[460px] bg-slate-100 z-0" />
 
       {/* Floating Map Controls Toolbar */}
       <div className="absolute top-4 left-4 z-10 flex flex-col space-y-2">
         <button
           type="button"
           onClick={() => setIsDrawingAoi(!isDrawingAoi)}
-          className={`flex items-center space-x-2 px-3.5 py-2 rounded-lg text-xs font-semibold shadow-md backdrop-blur-md transition-all ${
+          className={`flex items-center space-x-2 px-3 py-1.5 rounded text-xs font-semibold shadow-xs transition-colors ${
             isDrawingAoi
-              ? 'bg-amber-500 text-slate-950 ring-2 ring-amber-300 ring-offset-2 ring-offset-slate-900 animate-pulse'
-              : 'bg-slate-900/85 hover:bg-slate-800 text-white border border-slate-700/60'
+              ? 'bg-amber-100 text-amber-900 border border-amber-400 ring-2 ring-amber-300'
+              : 'bg-white hover:bg-slate-50 text-slate-800 border border-slate-300'
           }`}
           title="Click to activate bounding box drawing mode on map (click 2 opposite corners)"
         >
-          <Crosshair className="w-4 h-4" />
+          <Crosshair className="w-3.5 h-3.5" />
           <span>{isDrawingAoi ? 'Click 2 Corners on Map...' : 'Draw AOI Rectangle'}</span>
         </button>
 
@@ -381,7 +381,7 @@ export const LeafletMapView: React.FC<LeafletMapViewProps> = ({
           <button
             type="button"
             onClick={() => onAoiChange(null)}
-            className="flex items-center space-x-2 px-3 py-1.5 rounded-lg text-xs font-medium bg-red-950/80 hover:bg-red-900 text-red-200 border border-red-800/50 shadow-md backdrop-blur-md transition-all"
+            className="flex items-center space-x-1.5 px-3 py-1.5 rounded text-xs font-medium bg-white hover:bg-rose-50 text-rose-700 border border-rose-300 shadow-xs transition-colors"
             title="Clear the selected Area of Interest"
           >
             <Trash2 className="w-3.5 h-3.5" />
@@ -395,17 +395,17 @@ export const LeafletMapView: React.FC<LeafletMapViewProps> = ({
         <button
           type="button"
           onClick={handleToggleBaseLayer}
-          className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-900/85 hover:bg-slate-800 text-slate-200 border border-slate-700/60 shadow-md backdrop-blur-md transition-all"
+          className="flex items-center space-x-1.5 px-3 py-1.5 rounded text-xs font-medium bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 shadow-xs transition-colors"
           title="Toggle between Satellite Imagery and Cartographic Streets"
         >
-          <Layers className="w-3.5 h-3.5 text-satellite-400" />
+          <Layers className="w-3.5 h-3.5 text-slate-500" />
           <span>{activeBaseLayer === 'osm' ? 'Satellite View' : 'Map View'}</span>
         </button>
 
         <button
           type="button"
           onClick={handleFitToExtent}
-          className="p-2 rounded-lg bg-slate-900/85 hover:bg-slate-800 text-slate-200 border border-slate-700/60 shadow-md backdrop-blur-md transition-all"
+          className="p-1.5 rounded bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 shadow-xs transition-colors"
           title="Fit view to current AOI / search results"
         >
           <Maximize2 className="w-3.5 h-3.5" />
@@ -414,12 +414,12 @@ export const LeafletMapView: React.FC<LeafletMapViewProps> = ({
 
       {/* Drawing Mode Guide Banner */}
       {isDrawingAoi && (
-        <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-10 bg-amber-500/90 text-slate-950 px-4 py-2 rounded-lg text-xs font-semibold shadow-xl border border-amber-300 flex items-center space-x-2 backdrop-blur-md">
-          <Crosshair className="w-4 h-4 animate-spin" />
+        <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-10 bg-amber-50 text-amber-950 px-3.5 py-1.5 rounded text-xs font-semibold shadow-md border border-amber-300 flex items-center space-x-2">
+          <Crosshair className="w-3.5 h-3.5 animate-spin text-amber-800" />
           <span>Click top-left corner, then click bottom-right corner on the map to define AOI</span>
           <button
             onClick={() => setIsDrawingAoi(false)}
-            className="ml-2 text-xs bg-slate-900 text-white px-2 py-0.5 rounded hover:bg-slate-800"
+            className="ml-2 text-xs bg-slate-800 text-white px-2 py-0.5 rounded hover:bg-slate-700"
           >
             Cancel
           </button>
@@ -427,14 +427,14 @@ export const LeafletMapView: React.FC<LeafletMapViewProps> = ({
       )}
 
       {/* Map Legend Overlay */}
-      <div className="absolute bottom-4 left-4 z-10 bg-slate-900/85 backdrop-blur-md border border-slate-700/60 rounded-lg p-2.5 shadow-md text-xs space-y-1.5 pointer-events-none">
+      <div className="absolute bottom-4 left-4 z-10 bg-white/95 backdrop-blur-sm border border-slate-300 rounded p-2.5 shadow-sm text-xs space-y-1 pointer-events-none">
         <div className="flex items-center space-x-2">
-          <span className="w-3 h-3 rounded-sm border-2 border-amber-500 bg-amber-500/20" />
-          <span className="text-slate-300">Selected AOI</span>
+          <span className="w-3 h-3 rounded-xs border-2 border-amber-600 bg-amber-500/20" />
+          <span className="text-slate-700 font-medium">Selected AOI</span>
         </div>
         <div className="flex items-center space-x-2">
-          <span className="w-3 h-3 rounded-sm border-2 border-sky-500 bg-sky-500/25" />
-          <span className="text-slate-300">Sentinel-2 Footprint</span>
+          <span className="w-3 h-3 rounded-xs border-2 border-teal-700 bg-teal-600/20" />
+          <span className="text-slate-700 font-medium">Sentinel-2 Footprint</span>
         </div>
       </div>
     </div>
