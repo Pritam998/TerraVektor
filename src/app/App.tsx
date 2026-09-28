@@ -1,17 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import Sidebar from './components/Sidebar';
-import MapView from './components/MapView';
-import Dashboard from './pages/Dashboard';
-import SemanticSearch from './pages/SemanticSearch';
-import ImageSearch from './pages/ImageSearch';
-import ChangeAnalysis from './pages/ChangeAnalysis';
-import SimilarLocations from './pages/SimilarLocations';
-import ReviewQueue from './pages/ReviewQueue';
-import DataManagement from './pages/DataManagement';
-import SystemStatus from './pages/SystemStatus';
-import Sentinel2Search from './pages/Sentinel2Search';
-import { getHealth, isExplicitDemoModeActive, setExplicitDemoMode } from './services/api';
-import { HealthResponse } from './types';
+import Sidebar from '../components/Sidebar';
+import MapView from '../components/MapView';
+import Dashboard from '../pages/Dashboard';
+import SemanticSearch from '../pages/SemanticSearch';
+import ImageSearch from '../pages/ImageSearch';
+import ChangeAnalysis from '../pages/ChangeAnalysis';
+import SimilarLocations from '../pages/SimilarLocations';
+import ReviewQueue from '../pages/ReviewQueue';
+import DataManagement from '../pages/DataManagement';
+import SystemStatus from '../pages/SystemStatus';
+import Sentinel2Search from '../pages/Sentinel2Search';
+import { getHealth, isExplicitDemoModeActive, setExplicitDemoMode } from '../services/api';
+import { HealthResponse } from '../types';
 
 type PageType = 'dashboard' | 'sentinel2-search' | 'semantic-search' | 'image-search' | 'change-analysis' | 'similar-locations' | 'review-queue' | 'data' | 'status';
 

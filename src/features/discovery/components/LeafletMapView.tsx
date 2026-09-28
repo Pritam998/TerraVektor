@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { Sentinel2Product } from '../types';
+import { Sentinel2Product } from '../../../types';
 import { format } from 'date-fns';
 import { Layers, Maximize2, Trash2, Crosshair, ExternalLink, Calendar, Cloud, Info } from 'lucide-react';
 

@@ -20,7 +20,7 @@ import {
   ArrowUpDown
 } from 'lucide-react';
 import { format, subDays } from 'date-fns';
-import LeafletMapView from '../components/LeafletMapView';
+import LeafletMapView from '../features/discovery/components/LeafletMapView';
 import { searchSentinel2 } from '../services/api';
 import { Sentinel2Product, Sentinel2SearchResponse } from '../types';
 

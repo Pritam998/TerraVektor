@@ -23,7 +23,7 @@ import {
   Crosshair
 } from 'lucide-react';
 import { format } from 'date-fns';
-import { BuiltUpAnalysisResult, ChangeAnalysisResult } from '../types';
+import { BuiltUpAnalysisResult, ChangeAnalysisResult } from '../../../types';
 
 export interface SceneSummary {
   id: string;

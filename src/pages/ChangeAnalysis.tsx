@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 import { searchSentinel2, analyzeSentinel2Change, getSentinel2PreviewUrl, getChangeMaskUrl } from '../services/api';
 import { Sentinel2Product, Sentinel2SearchResponse, ChangeAnalysisResult } from '../types';
-import { SatelliteInvestigationMap } from '../components/SatelliteInvestigationMap';
+import { SatelliteInvestigationMap } from '../features/investigation/components/SatelliteInvestigationMap';
 import { format, subDays } from 'date-fns';
 
 export const ChangeAnalysis: React.FC = () => {

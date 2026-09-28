@@ -20,8 +20,8 @@ import {
 } from 'lucide-react';
 import { semanticRetrieval } from '../services/api';
 import { SemanticRetrievalResponse, ParsedQuery, BuiltUpAnalysisResult, ChangeAnalysisResult } from '../types';
-import { SatelliteInvestigationMap } from '../components/SatelliteInvestigationMap';
-import { InvestigationWorkspacePanel } from '../components/InvestigationWorkspacePanel';
+import { SatelliteInvestigationMap } from '../features/investigation/components/SatelliteInvestigationMap';
+import { InvestigationWorkspacePanel } from '../features/investigation/components/InvestigationWorkspacePanel';
 import { format } from 'date-fns';
 
 export const SemanticSearch: React.FC = () => {
